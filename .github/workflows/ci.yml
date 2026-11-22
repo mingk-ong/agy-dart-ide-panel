@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check JS syntax & JSON manifests
+        run: |
+          for f in src/*.js src/*.mjs scripts/*.js test/*.js; do
+            echo "Checking $f"
+            node -c "$f"
+          done
+          node -e "for (const f of ['package.json','package.nls.json','package.nls.zh-cn.json']) JSON.parse(require('fs').readFileSync(f,'utf8')); console.log('JSON OK')"
+
+      - name: Run standalone unit tests
+        run: |
+          node --test --test-name-pattern="^(conversations:|htmlBuilder:|capsuleUi v2\.1\.1|statusBar & dashboardController:|quotaMatcher:|package-vsix:)" ./test/panel.test.js
+
+      - name: Verify VSIX packaging
+        run: |
+          npm run package
+          ls -lh agy-dart-ide-panel-*.vsix

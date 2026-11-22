@@ -1,0 +1,280 @@
+{
+  "name": "agy-dart-ide-panel",
+  "displayName": "%extension.displayName%",
+  "description": "%extension.description%",
+  "version": "2.2.2",
+  "publisher": "local",
+  "author": {
+    "name": "mingk-ong",
+    "url": "https://github.com/mingk-ong"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mingk-ong/agy-dart-ide-panel.git"
+  },
+  "homepage": "https://github.com/mingk-ong/agy-dart-ide-panel#readme",
+  "bugs": {
+    "url": "https://github.com/mingk-ong/agy-dart-ide-panel/issues"
+  },
+  "license": "MIT",
+  "icon": "assets/icon.png",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization"
+  ],
+  "keywords": [
+    "Antigravity",
+    "agy-dart",
+    "agy-capsule",
+    "Context Guard",
+    "KV-Cache",
+    "Quota Monitor",
+    "Dashboard"
+  ],
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:agyDartPanel.sidebarView"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "agyDartPanel",
+          "title": "%viewsContainers.agyDartPanel.title%",
+          "icon": "assets/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "agyDartPanel": [
+        {
+          "type": "webview",
+          "id": "agyDartPanel.sidebarView",
+          "name": "%views.sidebarView.name%"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "agyDartPanel.focusSidebar",
+        "title": "%command.focusSidebar.title%",
+        "category": "%extension.category%",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "agyDartPanel.openTelemetryTab",
+        "title": "%command.openTelemetryTab.title%",
+        "category": "%extension.category%",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "agyDartPanel.openGuardTab",
+        "title": "%command.openGuardTab.title%",
+        "category": "%extension.category%",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "agyDartPanel.openEditorTab",
+        "title": "%command.openEditorTab.title%",
+        "category": "%extension.category%",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "agyDartPanel.refresh",
+        "title": "%command.refresh.title%",
+        "category": "%extension.category%",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "agyDartPanel.togglePause",
+        "title": "%command.togglePause.title%",
+        "category": "%extension.category%",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "agyDartPanel.switchMode",
+        "title": "%command.switchMode.title%",
+        "category": "%extension.category%",
+        "icon": "$(sliders)"
+      },
+      {
+        "command": "agyDartPanel.runDoctor",
+        "title": "%command.runDoctor.title%",
+        "category": "%extension.category%",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "agyDartPanel.copyHandoffBrief",
+        "title": "%command.copyHandoffBrief.title%",
+        "category": "%extension.category%",
+        "icon": "$(clippy)"
+      },
+      {
+        "command": "agyDartPanel.openConfig",
+        "title": "%command.openConfig.title%",
+        "category": "%extension.category%",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "agyDartPanel.restartBackend",
+        "title": "%command.restartBackend.title%",
+        "category": "%extension.category%",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "agyDartPanel.showLogs",
+        "title": "%command.showLogs.title%",
+        "category": "%extension.category%",
+        "icon": "$(output)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "agyDartPanel.refresh",
+          "when": "view == agyDartPanel.sidebarView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "agyDartPanel.openEditorTab",
+          "when": "view == agyDartPanel.sidebarView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "agyDartPanel.switchMode",
+          "when": "view == agyDartPanel.sidebarView",
+          "group": "navigation@3"
+        },
+        {
+          "command": "agyDartPanel.runDoctor",
+          "when": "view == agyDartPanel.sidebarView",
+          "group": "navigation@4"
+        },
+        {
+          "command": "agyDartPanel.togglePause",
+          "when": "view == agyDartPanel.sidebarView",
+          "group": "secondary@1"
+        },
+        {
+          "command": "agyDartPanel.copyHandoffBrief",
+          "when": "view == agyDartPanel.sidebarView",
+          "group": "secondary@2"
+        },
+        {
+          "command": "agyDartPanel.openConfig",
+          "when": "view == agyDartPanel.sidebarView",
+          "group": "secondary@3"
+        },
+        {
+          "command": "agyDartPanel.restartBackend",
+          "when": "view == agyDartPanel.sidebarView",
+          "group": "secondary@4"
+        },
+        {
+          "command": "agyDartPanel.showLogs",
+          "when": "view == agyDartPanel.sidebarView",
+          "group": "secondary@5"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "%config.title%",
+      "properties": {
+        "agyDartPanel.defaultTab": {
+          "type": "string",
+          "default": "capsule",
+          "enum": [
+            "capsule",
+            "dart"
+          ],
+          "enumDescriptions": [
+            "%config.defaultTab.capsule%",
+            "%config.defaultTab.dart%"
+          ],
+          "description": "%config.defaultTab.description%"
+        },
+        "agyDartPanel.statusBar.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.statusBar.enabled.description%"
+        },
+        "agyDartPanel.statusBar.showCache": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.statusBar.showCache.description%"
+        },
+        "agyDartPanel.statusBar.showSpeed": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.statusBar.showSpeed.description%"
+        },
+        "agyDartPanel.statusBar.showQuota": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.statusBar.showQuota.description%"
+        },
+        "agyDartPanel.refreshIntervalSec": {
+          "type": "integer",
+          "default": 8,
+          "minimum": 3,
+          "maximum": 60,
+          "description": "%config.refreshIntervalSec.description%"
+        },
+        "agyDartPanel.defaultScope": {
+          "type": "string",
+          "default": "conversation",
+          "enum": [
+            "conversation",
+            "app",
+            "lifetime"
+          ],
+          "enumDescriptions": [
+            "%config.defaultScope.conversation%",
+            "%config.defaultScope.app%",
+            "%config.defaultScope.lifetime%"
+          ],
+          "description": "%config.defaultScope.description%"
+        },
+        "agyDartPanel.capsule.cacheWarnMin": {
+          "type": "integer",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 998,
+          "description": "%config.capsule.cacheWarnMin.description%"
+        },
+        "agyDartPanel.capsule.cacheColdMin": {
+          "type": "integer",
+          "default": 4,
+          "minimum": 2,
+          "maximum": 999,
+          "description": "%config.capsule.cacheColdMin.description%"
+        },
+        "agyDartPanel.capsule.queueWarnSec": {
+          "type": "integer",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 999,
+          "description": "%config.capsule.queueWarnSec.description%"
+        },
+        "agyDartPanel.pluginPath": {
+          "type": "string",
+          "default": "",
+          "description": "%config.pluginPath.description%"
+        },
+        "agyDartPanel.nodePath": {
+          "type": "string",
+          "default": "",
+          "description": "%config.nodePath.description%"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "package": "node ./scripts/package-vsix.js",
+    "test": "node --test ./test/panel.test.js"
+  }
+}
