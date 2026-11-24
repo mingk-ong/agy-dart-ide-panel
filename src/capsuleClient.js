@@ -1,5 +1,6 @@
 "use strict";
 
+const os = require("node:os");
 const path = require("node:path");
 const readline = require("node:readline");
 const { spawn, spawnSync } = require("node:child_process");
@@ -7,7 +8,7 @@ const { spawn, spawnSync } = require("node:child_process");
 const REQUEST_TIMEOUT_MS = 20000;
 
 /**
- * 托管 Capsule stdio JSON-RPC Worker 进程，独立于 agy-dart 插件运行。
+ * 托管 Antigravity 融合面板 stdio JSON-RPC Worker 进程，独立于 agy-dart 插件运行。
  */
 class CapsuleClient {
   /**
@@ -64,7 +65,7 @@ class CapsuleClient {
     delete env.ELECTRON_RUN_AS_NODE;
 
     const child = spawn(nodeRes.nodePath, [workerPath], {
-      cwd: path.dirname(workerPath),
+      cwd: os.tmpdir(),
       env,
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true
@@ -179,6 +180,13 @@ class CapsuleClient {
 
   queryUsageAnalytics(params = {}) {
     return this.call("queryUsageAnalytics", params);
+  }
+
+  syncOnboardingEmail(email, options = {}) {
+    return this.call("syncOnboardingEmail", {
+      email: String(email || "").trim(),
+      isGcpTos: Boolean(options.isGcpTos)
+    });
   }
 
   async restart() {

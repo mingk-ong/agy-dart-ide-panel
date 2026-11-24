@@ -6,6 +6,15 @@ const {
   getCapsulePaneHtml,
   getCapsuleClientScript
 } = require("./capsuleUi");
+const {
+  getAccountCss,
+  getAccountPaneHtml,
+  getAccountClientScript
+} = require("./accountUi");
+
+function normalizeTab(tab) {
+  return tab === "dart" || tab === "accounts" ? tab : "capsule";
+}
 
 /**
  * 判断字符是否为标识符组成部分（含数字、字母、下划线、美元符、点、短横线）。
@@ -578,6 +587,7 @@ function getIdeOverlayCss() {
       }
     }
     ${getCapsuleCss()}
+    ${getAccountCss()}
   `;
 }
 
@@ -655,7 +665,7 @@ function getPreBridgeScript(initialState) {
       resolvedConversationId: init.resolvedConversationId || '',
       conversations: Array.isArray(init.conversations) ? init.conversations : [],
       lang: init.lang === 'en' ? 'en' : 'zh',
-      activeTab: init.activeTab === 'dart' ? 'dart' : 'capsule'
+      activeTab: (init.activeTab === 'dart' || init.activeTab === 'accounts') ? init.activeTab : 'capsule'
     };
 
     try {
@@ -753,20 +763,17 @@ function getPreBridgeScript(initialState) {
     }
 
     function applyMainTab(tab, notifyHost, shouldRefresh = false) {
-      const target = tab === 'dart' ? 'dart' : 'capsule';
+      const target = (tab === 'dart' || tab === 'accounts') ? tab : 'capsule';
       window.__AGY_IDE_STATE__.activeTab = target;
       if (document.body) {
         document.body.dataset.activeTab = target;
       }
-      const capBtn = document.getElementById('ide-tab-btn-capsule');
-      const dartBtn = document.getElementById('ide-tab-btn-dart');
-      if (capBtn) {
-        capBtn.className = target === 'capsule' ? 'ide-main-tab is-active' : 'ide-main-tab';
-        capBtn.setAttribute('aria-selected', String(target === 'capsule'));
-      }
-      if (dartBtn) {
-        dartBtn.className = target === 'dart' ? 'ide-main-tab is-active' : 'ide-main-tab';
-        dartBtn.setAttribute('aria-selected', String(target === 'dart'));
+      const tabs = ['capsule', 'accounts', 'dart'];
+      for (const name of tabs) {
+        const btn = document.getElementById('ide-tab-btn-' + name);
+        if (!btn) continue;
+        btn.className = target === name ? 'ide-main-tab is-active' : 'ide-main-tab';
+        btn.setAttribute('aria-selected', String(target === name));
       }
       if (notifyHost) {
         vscode.postMessage({ type: 'setActiveTab', tab: target });
@@ -774,6 +781,8 @@ function getPreBridgeScript(initialState) {
       if (shouldRefresh) {
         if (target === 'capsule') {
           if (window.__agyCapsuleUi) void window.__agyCapsuleUi.refreshAll(false);
+        } else if (target === 'accounts') {
+          if (window.__agyAccountUi) void window.__agyAccountUi.refresh(false);
         } else if (typeof window.refreshData === 'function') {
           window.refreshData(false);
         }
@@ -812,6 +821,9 @@ function getPreBridgeScript(initialState) {
           conversationId: window.__AGY_IDE_STATE__.resolvedConversationId || '',
           ...(payload || {})
         });
+      },
+      accountCall(type, payload) {
+        return postCall(type, payload || {});
       },
       saveCapsulePrefs(prefs) {
         vscode.postMessage({ type: 'saveCapsulePrefs', prefs });
@@ -853,6 +865,7 @@ function getPreBridgeScript(initialState) {
         applyIdeToolbarTexts(normalized);
         renderConversationOptions();
         if (window.__agyCapsuleUi) window.__agyCapsuleUi.applyTranslations();
+        if (window.__agyAccountUi) window.__agyAccountUi.applyTranslations();
         vscode.postMessage({ type: 'setLanguage', lang: normalized });
       },
       syncToolbar(lang) {
@@ -861,6 +874,7 @@ function getPreBridgeScript(initialState) {
         applyIdeToolbarTexts(normalized);
         renderConversationOptions();
         if (window.__agyCapsuleUi) window.__agyCapsuleUi.applyTranslations();
+        if (window.__agyAccountUi) window.__agyAccountUi.applyTranslations();
       }
     };
 
@@ -881,16 +895,24 @@ function getPreBridgeScript(initialState) {
         msg.type === 'apiResponse' ||
         msg.type === 'confirmResult' ||
         msg.type === 'copyTextResult' ||
-        msg.type === 'capsuleResult'
+        msg.type === 'capsuleResult' ||
+        msg.type === 'accountResult'
       ) {
         const pending = pendingRequests.get(msg.id);
         if (!pending) return;
         pendingRequests.delete(msg.id);
         clearTimeout(pending.timer);
-        if (msg.error && (msg.type === 'apiResponse' || msg.type === 'capsuleResult')) {
+        if (msg.error && (msg.type === 'apiResponse' || msg.type === 'capsuleResult' || msg.type === 'accountResult')) {
           pending.reject(new Error(msg.error));
         } else {
           pending.resolve(msg);
+        }
+        return;
+      }
+
+      if (msg.type === 'accountsUpdated') {
+        if (window.__agyAccountUi) {
+          void window.__agyAccountUi.refresh(false);
         }
         return;
       }
@@ -913,7 +935,7 @@ function getPreBridgeScript(initialState) {
         return;
       }
 
-      if (msg.type === 'setActiveTab' && (msg.tab === 'capsule' || msg.tab === 'dart')) {
+      if (msg.type === 'setActiveTab' && (msg.tab === 'capsule' || msg.tab === 'accounts' || msg.tab === 'dart')) {
         applyMainTab(msg.tab, false, true);
         return;
       }
@@ -940,6 +962,9 @@ function getPreBridgeScript(initialState) {
         }
         if (window.__agyCapsuleUi) {
           void window.__agyCapsuleUi.refreshAll(true);
+        }
+        if (window.__agyAccountUi) {
+          void window.__agyAccountUi.refresh(false);
         }
       }
     });
@@ -1030,7 +1055,7 @@ function getPostBridgeScript() {
  * 构建仅在 agy-dart 未安装时的降级双页签外壳（Tab 1 Capsule 仍可完全正常工作，Tab 2 提示未安装）。
  */
 function buildFallbackFusionShell({ mode, initialState, dartUnavailableReason }) {
-  const activeTab = initialState.activeTab === "dart" ? "dart" : "capsule";
+  const activeTab = normalizeTab(initialState?.activeTab);
   const reason = escapeHtml(dartUnavailableReason || "未检测到已安装的 agy-dart 插件。");
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -1038,7 +1063,7 @@ function buildFallbackFusionShell({ mode, initialState, dartUnavailableReason })
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src data:;">
-  <title>agy-dart 融合控制台</title>
+  <title>Antigravity 融合面板</title>
   <style>
     :root {
       --bg-canvas: #f7f8fa; --bg-panel: #ffffff; --bg-subtle: #f1f3f6; --bg-hover: #e8ecf2; --bg-inset: #f8f9fb;
@@ -1111,6 +1136,7 @@ function buildFallbackFusionShell({ mode, initialState, dartUnavailableReason })
       )}
     </header>
     ${getCapsulePaneHtml(initialState?.capsuleUiState)}
+    ${getAccountPaneHtml()}
     <div id="ide-dart-pane" class="dart-only-section">
       <section class="band">
         <div class="band-head">
@@ -1127,20 +1153,21 @@ function buildFallbackFusionShell({ mode, initialState, dartUnavailableReason })
   </div>
   ${getPreBridgeScript(initialState)}
   ${getCapsuleClientScript()}
+  ${getAccountClientScript()}
   ${getPostBridgeScript()}
 </body>
 </html>`;
 }
 
 /**
- * 将 agy-dart 原版仪表盘 HTML 与 Capsule 遥测模块融合为双页签原生 IDE Webview 页面。
+ * 将 agy-dart 原版仪表盘 HTML 与 Capsule 遥测、账号一键切换模块融合为三页签原生 IDE Webview 页面。
  * @param {{
  *   rawHtml?: string,
  *   dartUnavailableReason?: string,
  *   mode: "sidebar" | "editor",
  *   initialState: {
  *     lang: "zh" | "en",
- *     activeTab?: "capsule" | "dart",
+ *     activeTab?: "capsule" | "accounts" | "dart",
  *     defaultScope: "conversation" | "app" | "lifetime",
  *     selectionMode: string,
  *     resolvedConversationId: string,
@@ -1153,7 +1180,7 @@ function buildFallbackFusionShell({ mode, initialState, dartUnavailableReason })
 function buildDashboardHtml({ rawHtml = "", dartUnavailableReason = "", mode = "sidebar", initialState }) {
   const safeInitialState = {
     ...initialState,
-    activeTab: initialState?.activeTab === "dart" ? "dart" : "capsule"
+    activeTab: normalizeTab(initialState?.activeTab)
   };
 
   if (!rawHtml || dartUnavailableReason) {
@@ -1222,10 +1249,10 @@ function buildDashboardHtml({ rawHtml = "", dartUnavailableReason = "", mode = "
     html = html.slice(0, innerStart) + headerInner + html.slice(headerCloseIdx);
   }
 
-  // 7. 在 </header> 后注入 Capsule 面板并将原 DART 主体包裹进 #ide-dart-pane
+  // 7. 在 </header> 后注入 Capsule 与账号管理面板，并将原 DART 主体包裹进 #ide-dart-pane
   html = html.replace(
     /<\/header>/i,
-    () => `</header>\n${getCapsulePaneHtml(safeInitialState.capsuleUiState)}\n    <div id="ide-dart-pane" class="dart-only-section">`
+    () => `</header>\n${getCapsulePaneHtml(safeInitialState.capsuleUiState)}\n${getAccountPaneHtml()}\n    <div id="ide-dart-pane" class="dart-only-section">`
   );
 
   // 8. 对原版主 <script> 块重写同步弹窗，并在其前方闭合 #ide-dart-pane 兼注入前置桥接脚本
@@ -1252,8 +1279,8 @@ function buildDashboardHtml({ rawHtml = "", dartUnavailableReason = "", mode = "
     }
   }
 
-  // 9. 在 </body> 前注入 Capsule 前端引擎及后置联动脚本
-  const postScripts = `${getCapsuleClientScript()}\n  ${getPostBridgeScript()}`;
+  // 9. 在 </body> 前注入 Capsule、账号切换前端引擎及后置联动脚本
+  const postScripts = `${getCapsuleClientScript()}\n  ${getAccountClientScript()}\n  ${getPostBridgeScript()}`;
   if (html.includes("</body>")) {
     html = html.replace("</body>", () => `${postScripts}\n</body>`);
   } else {
@@ -1267,7 +1294,7 @@ function buildDashboardHtml({ rawHtml = "", dartUnavailableReason = "", mode = "
  * 构建完整不可用兜底页（当 Node.js 都不满足时使用）。
  */
 function buildUnavailableHtml({ title, reason, details = "" }) {
-  const safeTitle = escapeHtml(title || "agy-dart 面板暂不可用");
+  const safeTitle = escapeHtml(title || "Antigravity 融合面板暂不可用");
   const safeReason = escapeHtml(reason || "未检测到可用的 Node.js (>= 22)。");
   const safeDetails = details ? `<pre class="err-box">${escapeHtml(details)}</pre>` : "";
   return `<!DOCTYPE html>

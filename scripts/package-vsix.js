@@ -131,9 +131,9 @@ function buildContentTypesXml() {
 function buildVsixManifest(pkg) {
   const publisher = escapeXml(pkg.publisher || "local");
   const name = escapeXml(pkg.name);
-  const version = escapeXml(pkg.version || "2.0.0");
-  const displayName = escapeXml("agy-dart 融合控制台 (含 Capsule 遥测)");
-  const description = escapeXml("面向 Antigravity IDE 的 agy-dart 与 agy-capsule 融合侧边栏与全宽面板扩展");
+  const version = escapeXml(pkg.version || "3.0.0");
+  const displayName = escapeXml("Antigravity 融合面板");
+  const description = escapeXml("面向 Antigravity IDE 的遥测监控、多账号一键切换与 agy-dart 护栏融合面板扩展");
   const engine = escapeXml(pkg.engines?.vscode || "^1.100.0");
 
   return `<?xml version="1.0" encoding="utf-8"?>
@@ -142,7 +142,7 @@ function buildVsixManifest(pkg) {
     <Identity Language="en-US" Id="${name}" Version="${version}" Publisher="${publisher}"/>
     <DisplayName>${displayName}</DisplayName>
     <Description xml:space="preserve">${description}</Description>
-    <Tags>Antigravity,agy-dart,agy-capsule,Dashboard,KV-Cache,Quota</Tags>
+    <Tags>Antigravity,Fusion Panel,Account Switcher,agy-dart,agy-capsule,Dashboard,KV-Cache,Quota</Tags>
     <Categories>Other,Visualization</Categories>
     <GalleryFlags>Public</GalleryFlags>
     <Properties>
@@ -176,16 +176,25 @@ const RUNTIME_FILES = [
   "THIRD_PARTY_NOTICES.md",
   "assets/icon.svg",
   "assets/icon.png",
+  "src/accountManager.js",
+  "src/accountStore.js",
+  "src/accountUi.js",
+  "src/authHealth.js",
   "src/backendClient.js",
   "src/capsuleClient.js",
   "src/capsuleUi.js",
   "src/capsuleWorker.mjs",
+  "src/coldRestartHelper.mjs",
   "src/conversations.js",
+  "src/credentialBridge.js",
   "src/dashboardController.js",
   "src/extension.js",
   "src/htmlBuilder.js",
+  "src/ideRestart.js",
+  "src/onboardingSync.mjs",
   "src/paths.js",
   "src/quotaMatcher.js",
+  "src/quotaTracker.js",
   "src/statusBar.js"
 ];
 

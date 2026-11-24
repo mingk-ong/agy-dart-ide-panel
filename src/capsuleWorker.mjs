@@ -45,6 +45,9 @@ function getDaemonDirs() {
   );
 }
 
+import { getStateVscdbPaths, syncOnboardingEmail } from "./onboardingSync.mjs";
+export { getStateVscdbPaths, syncOnboardingEmail };
+
 // =====================================================================
 // 1. 零依赖 Protobuf Wire-Format 通用解码器
 // =====================================================================
@@ -1051,6 +1054,8 @@ export async function getQuota(force = false) {
       const quotaGroups = Array.isArray(groups) ? groups : [];
       let cloudPaygo = false;
       let userTierName = "";
+      let userEmail = "";
+      let userName = "";
       let defaultModelLabel = "";
       try {
         const statusRes = await callRpc("GetUserStatus");
@@ -1059,6 +1064,8 @@ export async function getQuota(force = false) {
           const tier = statusJson?.userStatus?.userTier;
           cloudPaygo = tier?.id === "agy-business-paygo-tier";
           userTierName = String(tier?.name || "").trim();
+          userEmail = String(statusJson?.userStatus?.email || "").trim();
+          userName = String(statusJson?.userStatus?.name || "").trim();
           const cascadeCfg = statusJson?.userStatus?.cascadeModelConfigData;
           const defaultModelCfg = cascadeCfg?.defaultOverrideModelConfig;
           const defaultModelId = defaultModelCfg?.modelOrAlias?.model || "";
@@ -1091,6 +1098,8 @@ export async function getQuota(force = false) {
         quotaGroups,
         cloudPaygo,
         userTierName,
+        userEmail,
+        userName,
         defaultModelLabel,
         fetchedAtMs: Date.now()
       };
@@ -1107,6 +1116,8 @@ export async function getQuota(force = false) {
       quotaGroups: [],
       cloudPaygo: false,
       userTierName: "",
+      userEmail: "",
+      userName: "",
       defaultModelLabel: "",
       fetchedAtMs: Date.now()
     }
@@ -1967,6 +1978,8 @@ async function handleRpc(req) {
       return getUsageHistory(params.activeConversationId || "");
     case "queryUsageAnalytics":
       return queryUsageAnalytics(params);
+    case "syncOnboardingEmail":
+      return syncOnboardingEmail(params.email || "", params);
     default:
       throw new Error(`未知 RPC 方法: ${method}`);
   }

@@ -214,8 +214,11 @@ test("backendClient & htmlBuilder 融合双页签端到端: 真实托管 server.
       assert.ok(converted.includes('data-active-tab="capsule"'));
       assert.ok(converted.includes('id="ide-conv-select"'));
       assert.ok(converted.includes('id="ide-pane-capsule"'));
+      assert.ok(converted.includes('id="ide-pane-accounts"'));
+      assert.ok(converted.includes('id="ide-tab-btn-accounts"'));
       assert.ok(converted.includes('id="ide-dart-pane"'));
       assert.ok(converted.includes("window.__agyCapsuleUi"));
+      assert.ok(converted.includes("window.__agyAccountUi"));
       assert.ok(converted.includes("window.__agyIdeBridge"));
 
       // 校验顶栏层级：主页签置于最顶上，护栏专属标题与「模式/体检/配置」收进 dart-only-section
@@ -233,7 +236,7 @@ test("backendClient & htmlBuilder 融合双页签端到端: 真实托管 server.
         scripts.push(code);
         return "";
       });
-      assert.equal(scripts.length, 4, "应包含前置桥接、DART 主脚本、Capsule 脚本、后置联动脚本共 4 段");
+      assert.equal(scripts.length, 5, "应包含前置桥接、DART 主脚本、Capsule 脚本、账号脚本、后置联动脚本共 5 段");
 
       for (let idx = 0; idx < scripts.length; idx++) {
         assert.doesNotThrow(
@@ -262,7 +265,7 @@ test("backendClient & htmlBuilder 融合双页签端到端: 真实托管 server.
     });
     assert.ok(expandedHtml.includes('<details id="cap-usage-accordion" class="accordion-band" open>'));
 
-    // 校验当 agy-dart 未安装时的降级双页签外壳也能正常解析全部脚本
+    // 校验当 agy-dart 未安装时的降级三页签外壳也能正常解析全部脚本
     const fallbackHtml = buildDashboardHtml({
       rawHtml: "",
       dartUnavailableReason: "未找到插件",
@@ -270,13 +273,14 @@ test("backendClient & htmlBuilder 融合双页签端到端: 真实托管 server.
       initialState: baseState
     });
     assert.ok(fallbackHtml.includes('id="ide-pane-capsule"'));
+    assert.ok(fallbackHtml.includes('id="ide-pane-accounts"'));
     assert.ok(fallbackHtml.includes("未找到插件"));
     const fbScripts = [];
     fallbackHtml.replace(/<script>([\s\S]*?)<\/script>/gi, (_, code) => {
       fbScripts.push(code);
       return "";
     });
-    assert.equal(fbScripts.length, 3);
+    assert.equal(fbScripts.length, 4);
     for (const sc of fbScripts) {
       assert.doesNotThrow(() => new Function(sc));
     }
@@ -1193,6 +1197,7 @@ test("statusBar & dashboardController: 底栏胶囊命令绑定与定向页签�
     ["defaultTab", "capsule"],
     ["defaultScope", "conversation"],
     ["statusBar.enabled", true],
+    ["statusBar.showAccount", true],
     ["statusBar.showCache", true],
     ["statusBar.showSpeed", true],
     ["statusBar.showQuota", true],
@@ -1329,12 +1334,13 @@ test("statusBar & dashboardController: 底栏胶囊命令绑定与定向页签�
       logger: { log() {} }
     });
 
-    // 校验 4 枚状态栏胶囊的点击命令绑定
-    assert.equal(statusItems.length, 4);
-    assert.equal(statusBar._guardItem.command, "agyDartPanel.openGuardTab");
-    assert.equal(statusBar._cacheItem.command, "agyDartPanel.openGuardTab");
-    assert.equal(statusBar._speedItem.command, "agyDartPanel.openTelemetryTab");
-    assert.equal(statusBar._quotaItem.command, "agyDartPanel.openTelemetryTab");
+    // 校验 5 枚状态栏胶囊的点击命令绑定
+    assert.equal(statusItems.length, 5);
+    assert.equal(statusBar._accountItem.command, "agyFusion.openAccountsTab");
+    assert.equal(statusBar._guardItem.command, "agyFusion.openGuardTab");
+    assert.equal(statusBar._cacheItem.command, "agyFusion.openGuardTab");
+    assert.equal(statusBar._speedItem.command, "agyFusion.openTelemetryTab");
+    assert.equal(statusBar._quotaItem.command, "agyFusion.openTelemetryTab");
 
     const posted = [];
     let receiveHandler = null;
@@ -1363,9 +1369,17 @@ test("statusBar & dashboardController: 底栏胶囊命令绑定与定向页签�
     // 1. 点击底栏「融合监控」-> 跳转「护栏与缓存诊断」('dart')
     await controller.focusSidebar("dart");
     assert.equal(controller._activeTab, "dart");
-    assert.equal(stateStore.get("agyDartPanel.activeTab"), "dart");
-    assert.ok(executedCommands.some((c) => c.cmd === "workbench.view.extension.agyDartPanel"));
+    assert.equal(stateStore.get("agyFusion.activeTab"), "dart");
+    assert.ok(executedCommands.some((c) => c.cmd === "workbench.view.extension.agyFusion"));
     assert.ok(posted.some((m) => m.type === "setActiveTab" && m.tab === "dart"));
+
+    // 1b. 跳转「账号切换」('accounts')
+    await controller.focusSidebar("accounts");
+    assert.equal(controller._activeTab, "accounts");
+    assert.equal(stateStore.get("agyFusion.activeTab"), "accounts");
+    assert.ok(posted.some((m) => m.type === "setActiveTab" && m.tab === "accounts"));
+
+    await controller.focusSidebar("dart");
 
     // 2. Webview 冷启动就绪握手 -> 宿主立即回发当前 activeTab
     posted.length = 0;
@@ -1376,7 +1390,7 @@ test("statusBar & dashboardController: 底栏胶囊命令绑定与定向页签�
     posted.length = 0;
     await controller.focusSidebar("capsule");
     assert.equal(controller._activeTab, "capsule");
-    assert.equal(stateStore.get("agyDartPanel.activeTab"), "capsule");
+    assert.equal(stateStore.get("agyFusion.activeTab"), "capsule");
     assert.ok(posted.some((m) => m.type === "setActiveTab" && m.tab === "capsule"));
 
     // 4. 全宽编辑器标签页已打开且可见时，点击底栏原地 reveal 并切换页签
@@ -1414,7 +1428,7 @@ test("statusBar & dashboardController: 底栏胶囊命令绑定与定向页签�
       type: "setCapsuleUiState",
       state: expectedUiState
     });
-    assert.deepEqual(stateStore.get("agyDartPanel.capsuleUiState"), expectedUiState);
+    assert.deepEqual(stateStore.get("agyFusion.capsuleUiState"), expectedUiState);
     assert.deepEqual(editorPosted, [{ type: "capsuleUiState", state: expectedUiState }]);
 
     const controllerRestored = new DashboardController({

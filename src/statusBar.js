@@ -4,6 +4,47 @@ const fs = require("node:fs");
 const vscode = require("vscode");
 const { getAntigravityStateDirs, readSelectedAgentModelId } = require("./paths");
 const { matchQuotaGroup, formatQuotaPoolShortName } = require("./quotaMatcher");
+const { maskEmail } = require("./credentialBridge");
+const {
+  evaluateQuotaSnapshot,
+  sortAccountsByQuota,
+  formatCountdown
+} = require("./quotaTracker");
+
+function escapeMarkdownLabel(text) {
+  return String(text || "").replace(/[\\[\]()*`_|<>]/g, "\\$&");
+}
+
+function summarizeAccountQuotaForHover(account, options = {}) {
+  const rawSnap = account?.effectiveQuotaSnapshot || account?.quotaSnapshot;
+  if (!rawSnap || !Array.isArray(rawSnap.groups) || rawSnap.groups.length === 0) {
+    return "未记录";
+  }
+  const isActive = Boolean(options.isActive);
+  const nowMs = Number(options.nowMs) > 0 ? Number(options.nowMs) : Date.now();
+  const snap = evaluateQuotaSnapshot(rawSnap, { nowMs, isActive });
+  const groups = snap?.groups;
+  if (!Array.isArray(groups) || groups.length === 0) return "未记录";
+  const parts = [];
+  for (const g of groups.slice(0, 3)) {
+    const buckets = Array.isArray(g?.buckets) ? g.buckets : [];
+    const b5h = buckets.find((b) => b.window === "5h") || buckets[0];
+    if (!b5h) continue;
+    const pool = formatQuotaPoolShortName(g);
+    if (isActive) {
+      const rst = b5h.remainingMs > 0 ? `(${formatCountdown(b5h.remainingMs, { compact: true })})` : "";
+      parts.push(`${pool} ${b5h.effectivePct}%${rst}`);
+    } else if (b5h.state === "recovered") {
+      parts.push(`${pool} 100%(已回满)`);
+    } else if (b5h.state === "recovering") {
+      const cd = formatCountdown(b5h.remainingMs, { compact: true });
+      parts.push(`${pool} ${b5h.recordedPct}%(满额 ${cd})`);
+    } else {
+      parts.push(`${pool} ${b5h.effectivePct}%`);
+    }
+  }
+  return parts.join(" · ") || "未记录";
+}
 
 const ERROR_LABELS = {
   quota_exhausted: "额度耗尽",
@@ -75,7 +116,7 @@ function formatAge(seconds, compact = false) {
 }
 
 /**
- * 底部状态栏多胶囊组件：护栏/上下文胶囊 + 缓存命中率胶囊 + 速度/报错/等待胶囊 + 配额胶囊。
+ * 底部状态栏多胶囊组件：账号切换胶囊 + 护栏/上下文胶囊 + 缓存命中率胶囊 + 速度/报错/等待胶囊 + 配额胶囊。
  */
 class StatusBarController {
   /**
@@ -83,6 +124,7 @@ class StatusBarController {
    *   backendClient: import("./backendClient").AgyDartBackendClient,
    *   capsuleClient: import("./capsuleClient").CapsuleClient,
    *   dashboardController: import("./dashboardController").DashboardController,
+   *   accountManager?: import("./accountManager").AccountManager,
    *   resolveRuntime: () => { ok: boolean, error?: string },
    *   logger: { log: (msg: string) => void }
    * }} options
@@ -91,6 +133,7 @@ class StatusBarController {
     this._backend = options.backendClient;
     this._capsule = options.capsuleClient;
     this._dashboard = options.dashboardController;
+    this._accountManager = options.accountManager || null;
     this._resolveRuntime = options.resolveRuntime;
     this._logger = options.logger;
     this._timer = null;
@@ -101,20 +144,24 @@ class StatusBarController {
     this._lastSelectedModelId = "";
     this._disposed = false;
 
+    this._accountItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
+    this._accountItem.command = "agyFusion.openAccountsTab";
+    this._accountItem.text = "$(account) 账号";
+
     this._guardItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 98);
-    this._guardItem.command = "agyDartPanel.openGuardTab";
-    this._guardItem.text = "$(shield) agy-dart";
+    this._guardItem.command = "agyFusion.openGuardTab";
+    this._guardItem.text = "$(shield) 护栏";
 
     this._cacheItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 97);
-    this._cacheItem.command = "agyDartPanel.openGuardTab";
+    this._cacheItem.command = "agyFusion.openGuardTab";
     this._cacheItem.text = "$(database) 缓存 --";
 
     this._speedItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 96);
-    this._speedItem.command = "agyDartPanel.openTelemetryTab";
+    this._speedItem.command = "agyFusion.openTelemetryTab";
     this._speedItem.text = "$(pulse) 遥测";
 
     this._quotaItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 95);
-    this._quotaItem.command = "agyDartPanel.openTelemetryTab";
+    this._quotaItem.command = "agyFusion.openTelemetryTab";
     this._quotaItem.text = "$(pie-chart) 配额";
   }
 
@@ -123,15 +170,19 @@ class StatusBarController {
     this._stopModelSelectionWatch();
     if (this._disposed) return;
 
-    const cfg = vscode.workspace.getConfiguration("agyDartPanel");
+    const cfg = vscode.workspace.getConfiguration("agyFusion");
     const enabled = cfg.get("statusBar.enabled", true);
     if (!enabled) {
+      this._accountItem.hide();
       this._guardItem.hide();
       this._cacheItem.hide();
       this._speedItem.hide();
       this._quotaItem.hide();
       return;
     }
+
+    if (cfg.get("statusBar.showAccount", true)) this._accountItem.show();
+    else this._accountItem.hide();
 
     this._guardItem.show();
     if (cfg.get("statusBar.showCache", true)) this._cacheItem.show();
@@ -215,7 +266,7 @@ class StatusBarController {
       this._pendingRefresh = true;
       return;
     }
-    const cfg = vscode.workspace.getConfiguration("agyDartPanel");
+    const cfg = vscode.workspace.getConfiguration("agyFusion");
     if (!cfg.get("statusBar.enabled", true)) return;
 
     this._polling = true;
@@ -224,6 +275,7 @@ class StatusBarController {
       const convId = this._dashboard.getResolvedConversationId();
       const scope = cfg.get("defaultScope", "conversation");
       const runtime = this._resolveRuntime();
+      const needQuota = cfg.get("statusBar.showQuota", true) || cfg.get("statusBar.showAccount", true);
 
       const [stats, capSnap, quota] = await Promise.all([
         runtime.ok
@@ -233,11 +285,20 @@ class StatusBarController {
               .catch(() => null)
           : Promise.resolve(null),
         this._capsule.inspectConversation(convId).catch(() => null),
-        cfg.get("statusBar.showQuota", true)
+        needQuota
           ? this._capsule.getQuota(false).catch(() => null)
           : Promise.resolve(null)
       ]);
 
+      if (this._accountManager && quota) {
+        await this._accountManager.syncActiveAccountSnapshot(quota).catch(() => {});
+      }
+      if (this._accountManager?.keepFreshAndGuard) {
+        await this._accountManager.keepFreshAndGuard({ quota, capSnap }).catch(() => {});
+      }
+      if (cfg.get("statusBar.showAccount", true)) {
+        this._updateAccountCapsule(quota);
+      }
       this._updateGuardCapsule(runtime, stats, capSnap, convId);
       if (cfg.get("statusBar.showCache", true)) {
         this._updateCacheCapsule(capSnap);
@@ -259,6 +320,94 @@ class StatusBarController {
         });
       }
     }
+  }
+
+  _updateAccountCapsule(quota) {
+    const email = String(quota?.userEmail || "").trim();
+    const prefs = this._accountManager?.getAccountPrefs?.() || { privacyMask: false };
+    const meta = email && this._accountManager?._store?.findByEmail ? this._accountManager._store.findByEmail(email) : null;
+    const allAccounts = this._accountManager?._store?.listPublicAccounts
+      ? this._accountManager._store.listPublicAccounts()
+      : [];
+    const allCount = allAccounts.length;
+    const nowMs = Date.now();
+
+    const health = this._accountManager?.getLatestHealthSummary?.() || null;
+    const isCritical = health?.overall === "critical";
+    const icon = isCritical ? "$(warning)" : "$(account)";
+
+    let shortLabel = "账号";
+    if (meta?.alias) {
+      shortLabel = meta.alias;
+    } else if (email) {
+      const shown = prefs.privacyMask ? maskEmail(email) : email;
+      const local = shown.split("@")[0] || shown;
+      shortLabel = local.length > 14 ? `${local.slice(0, 12)}..` : local;
+    }
+
+    this._accountItem.text = isCritical ? `${icon} ${shortLabel} (异常)` : `${icon} ${shortLabel}`;
+    this._accountItem.backgroundColor = undefined;
+
+    const md = new vscode.MarkdownString("", true);
+    md.supportThemeIcons = true;
+    md.isTrusted = {
+      enabledCommands: [
+        "agyFusion.switchAccountById",
+        "agyFusion.openAccountsTab",
+        "agyFusion.captureCurrentAccount",
+        "agyFusion.healAccount",
+        "agyFusion.switchAccount"
+      ]
+    };
+
+    md.appendMarkdown("**Antigravity 账号快捷切换** *(按可用余量与最快回满排序)*\n\n");
+    if (email) {
+      const shownActive = prefs.privacyMask ? maskEmail(email) : email;
+      const tierText = quota?.userTierName ? ` · ${escapeMarkdownLabel(quota.userTierName)}` : "";
+      md.appendMarkdown(`- **当前活跃**: ${escapeMarkdownLabel(shownActive)}${meta?.alias ? ` (${escapeMarkdownLabel(meta.alias)})` : ""}${tierText}\n`);
+    } else {
+      md.appendMarkdown("- **当前活跃**: 未检测到活跃登录态\n");
+    }
+    if (health && Array.isArray(health.issues) && health.issues.length > 0) {
+      md.appendMarkdown(`- **护盾告警**: ${escapeMarkdownLabel(health.issues.map((i) => i.title).join("；"))}\n`);
+    }
+
+    if (allCount > 0) {
+      const sortedAccounts = sortAccountsByQuota(allAccounts, nowMs);
+      const shownAccounts = sortedAccounts.slice(0, 10);
+      md.appendMarkdown("\n---\n\n");
+      for (const acc of shownAccounts) {
+        const isCurrent = Boolean(email && acc.email && acc.email.toLowerCase() === email.toLowerCase());
+        const shownEmail = prefs.privacyMask ? maskEmail(acc.email) : acc.email;
+        const displayName = escapeMarkdownLabel(acc.alias ? `${acc.alias} (${shownEmail})` : shownEmail);
+        const tierTag = acc.tierName ? ` [${escapeMarkdownLabel(acc.tierName)}]` : "";
+        const qText = escapeMarkdownLabel(summarizeAccountQuotaForHover(acc, { isActive: isCurrent, nowMs }));
+        if (isCurrent) {
+          md.appendMarkdown(`- **$(check) ${displayName}**${tierTag} · ${qText} *(在线实时)*\n`);
+        } else {
+          const arg = encodeURIComponent(JSON.stringify([acc.id]));
+          md.appendMarkdown(
+            `- [$(arrow-swap) **${displayName}**${tierTag} · ${qText}](command:agyFusion.switchAccountById?${arg} "点击立即切换至该账号")\n`
+          );
+        }
+      }
+      if (sortedAccounts.length > shownAccounts.length) {
+        md.appendMarkdown(`- *还有 ${sortedAccounts.length - shownAccounts.length} 个账号，点击打开左侧账号页查看*\n`);
+      }
+    } else {
+      md.appendMarkdown("\n---\n\n- 暂无已保存账号，[$(cloud-download) 点击捕获当前账号](command:agyFusion.captureCurrentAccount)\n");
+    }
+
+    md.appendMarkdown("\n---\n\n");
+    const footerActions = [
+      "[$(account) 左侧账号页](command:agyFusion.openAccountsTab)",
+      "[$(cloud-download) 捕获当前](command:agyFusion.captureCurrentAccount)"
+    ];
+    if (health?.canAutoHeal) {
+      footerActions.push("[$(shield) 一键修复](command:agyFusion.healAccount)");
+    }
+    md.appendMarkdown(`${footerActions.join(" · ")}\n\n单击底栏打开左侧账号页 · 悬停点击账号即可秒切`);
+    this._accountItem.tooltip = md;
   }
 
   _updateGuardCapsule(runtime, stats, capSnap, convId) {
@@ -518,6 +667,7 @@ class StatusBarController {
     this._disposed = true;
     this._stopTimer();
     this._stopModelSelectionWatch();
+    this._accountItem.dispose();
     this._guardItem.dispose();
     this._cacheItem.dispose();
     this._speedItem.dispose();

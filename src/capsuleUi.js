@@ -20,13 +20,14 @@ function getCapsuleCss() {
 
     .ide-main-tab {
       flex: 1 1 0;
+      min-width: 0;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
-      padding: 5px 8px;
+      gap: 4px;
+      padding: 5px 4px;
       border-radius: 4px;
-      font-size: 12px;
+      font-size: 11.5px;
       font-weight: 500;
       color: var(--text-secondary);
       transition: background-color 150ms ease, color 150ms ease;
@@ -62,11 +63,18 @@ function getCapsuleCss() {
     .tab-dot.is-danger { background: var(--danger); }
     .tab-dot.is-muted { background: var(--text-muted); }
 
-    body[data-active-tab="capsule"] .dart-only-section {
+    body[data-active-tab="capsule"] .dart-only-section,
+    body[data-active-tab="capsule"] #ide-pane-accounts {
       display: none !important;
     }
 
-    body[data-active-tab="dart"] #ide-pane-capsule {
+    body[data-active-tab="accounts"] .dart-only-section,
+    body[data-active-tab="accounts"] #ide-pane-capsule {
+      display: none !important;
+    }
+
+    body[data-active-tab="dart"] #ide-pane-capsule,
+    body[data-active-tab="dart"] #ide-pane-accounts {
       display: none !important;
     }
 
@@ -1059,16 +1067,23 @@ function getCapsuleCss() {
 }
 
 function getMainTabsHtml(defaultTab) {
-  const isCap = defaultTab !== "dart";
+  const active = defaultTab === "dart" || defaultTab === "accounts" ? defaultTab : "capsule";
+  const isCap = active === "capsule";
+  const isAcc = active === "accounts";
+  const isDart = active === "dart";
   return `
       <div class="ide-main-tabs" role="tablist">
         <button id="ide-tab-btn-capsule" type="button" role="tab" aria-selected="${isCap}" onclick="window.__agyIdeBridge.switchMainTab('capsule')" class="ide-main-tab ${isCap ? "is-active" : ""}">
           <span id="ide-tab-dot-capsule" class="tab-dot"></span>
-          <span data-cap-i18n="tabTelemetry">实时遥测与用量</span>
+          <span data-cap-i18n="tabTelemetry">实时遥测</span>
         </button>
-        <button id="ide-tab-btn-dart" type="button" role="tab" aria-selected="${!isCap}" onclick="window.__agyIdeBridge.switchMainTab('dart')" class="ide-main-tab ${!isCap ? "is-active" : ""}">
+        <button id="ide-tab-btn-accounts" type="button" role="tab" aria-selected="${isAcc}" onclick="window.__agyIdeBridge.switchMainTab('accounts')" class="ide-main-tab ${isAcc ? "is-active" : ""}">
+          <span id="ide-tab-dot-accounts" class="tab-dot"></span>
+          <span data-cap-i18n="tabAccounts">账号切换</span>
+        </button>
+        <button id="ide-tab-btn-dart" type="button" role="tab" aria-selected="${isDart}" onclick="window.__agyIdeBridge.switchMainTab('dart')" class="ide-main-tab ${isDart ? "is-active" : ""}">
           <span id="ide-tab-dot-dart" class="tab-dot"></span>
-          <span data-cap-i18n="tabDart">护栏与缓存诊断</span>
+          <span data-cap-i18n="tabDart">护栏诊断</span>
         </button>
       </div>`;
 }
@@ -1321,8 +1336,9 @@ function getCapsuleClientScript() {
   (function() {
     const CAP_I18N = {
       zh: {
-        tabTelemetry: '实时遥测与用量',
-        tabDart: '护栏与缓存诊断',
+        tabTelemetry: '实时遥测',
+        tabAccounts: '账号切换',
+        tabDart: '护栏诊断',
         ctxTitle: '实时上下文明细',
         turn0: '首轮基线',
         read: '读取增量',
@@ -1436,8 +1452,9 @@ function getCapsuleClientScript() {
         retryAfter: '服务端建议等待 {s}s'
       },
       en: {
-        tabTelemetry: 'Live Telemetry & Usage',
-        tabDart: 'Guard & KV-Cache',
+        tabTelemetry: 'Telemetry',
+        tabAccounts: 'Accounts',
+        tabDart: 'Guard',
         ctxTitle: 'Live Context Breakdown',
         turn0: 'Turn0',
         read: 'Read',

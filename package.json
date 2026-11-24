@@ -1,8 +1,8 @@
 {
-  "name": "agy-dart-ide-panel",
+  "name": "agy-fusion-panel",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "2.2.2",
+  "version": "4.0.1",
   "publisher": "local",
   "author": {
     "name": "mingk-ong",
@@ -10,11 +10,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/mingk-ong/agy-dart-ide-panel.git"
+    "url": "https://github.com/mingk-ong/agy-fusion-panel.git"
   },
-  "homepage": "https://github.com/mingk-ong/agy-dart-ide-panel#readme",
+  "homepage": "https://github.com/mingk-ong/agy-fusion-panel#readme",
   "bugs": {
-    "url": "https://github.com/mingk-ong/agy-dart-ide-panel/issues"
+    "url": "https://github.com/mingk-ong/agy-fusion-panel/issues"
   },
   "license": "MIT",
   "icon": "assets/icon.png",
@@ -27,6 +27,9 @@
   ],
   "keywords": [
     "Antigravity",
+    "Fusion Panel",
+    "Account Switcher",
+    "Multi-Account",
     "agy-dart",
     "agy-capsule",
     "Context Guard",
@@ -37,96 +40,132 @@
   "main": "./src/extension.js",
   "activationEvents": [
     "onStartupFinished",
-    "onView:agyDartPanel.sidebarView"
+    "onView:agyFusion.sidebarView"
   ],
   "contributes": {
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "agyDartPanel",
-          "title": "%viewsContainers.agyDartPanel.title%",
+          "id": "agyFusion",
+          "title": "%viewsContainers.agyFusion.title%",
           "icon": "assets/icon.svg"
         }
       ]
     },
     "views": {
-      "agyDartPanel": [
+      "agyFusion": [
         {
           "type": "webview",
-          "id": "agyDartPanel.sidebarView",
+          "id": "agyFusion.sidebarView",
           "name": "%views.sidebarView.name%"
         }
       ]
     },
     "commands": [
       {
-        "command": "agyDartPanel.focusSidebar",
+        "command": "agyFusion.focusSidebar",
         "title": "%command.focusSidebar.title%",
         "category": "%extension.category%",
         "icon": "$(shield)"
       },
       {
-        "command": "agyDartPanel.openTelemetryTab",
+        "command": "agyFusion.openTelemetryTab",
         "title": "%command.openTelemetryTab.title%",
         "category": "%extension.category%",
         "icon": "$(pulse)"
       },
       {
-        "command": "agyDartPanel.openGuardTab",
+        "command": "agyFusion.openAccountsTab",
+        "title": "%command.openAccountsTab.title%",
+        "category": "%extension.category%",
+        "icon": "$(account)"
+      },
+      {
+        "command": "agyFusion.openGuardTab",
         "title": "%command.openGuardTab.title%",
         "category": "%extension.category%",
         "icon": "$(shield)"
       },
       {
-        "command": "agyDartPanel.openEditorTab",
+        "command": "agyFusion.openEditorTab",
         "title": "%command.openEditorTab.title%",
         "category": "%extension.category%",
         "icon": "$(open-preview)"
       },
       {
-        "command": "agyDartPanel.refresh",
+        "command": "agyFusion.switchAccount",
+        "title": "%command.switchAccount.title%",
+        "category": "%extension.category%",
+        "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "agyFusion.captureCurrentAccount",
+        "title": "%command.captureCurrentAccount.title%",
+        "category": "%extension.category%",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "agyFusion.addOAuthAccount",
+        "title": "%command.addOAuthAccount.title%",
+        "category": "%extension.category%",
+        "icon": "$(sign-in)"
+      },
+      {
+        "command": "agyFusion.importExternalAccounts",
+        "title": "%command.importExternalAccounts.title%",
+        "category": "%extension.category%",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "agyFusion.healAccount",
+        "title": "%command.healAccount.title%",
+        "category": "%extension.category%",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "agyFusion.refresh",
         "title": "%command.refresh.title%",
         "category": "%extension.category%",
         "icon": "$(refresh)"
       },
       {
-        "command": "agyDartPanel.togglePause",
+        "command": "agyFusion.togglePause",
         "title": "%command.togglePause.title%",
         "category": "%extension.category%",
         "icon": "$(debug-pause)"
       },
       {
-        "command": "agyDartPanel.switchMode",
+        "command": "agyFusion.switchMode",
         "title": "%command.switchMode.title%",
         "category": "%extension.category%",
         "icon": "$(sliders)"
       },
       {
-        "command": "agyDartPanel.runDoctor",
+        "command": "agyFusion.runDoctor",
         "title": "%command.runDoctor.title%",
         "category": "%extension.category%",
         "icon": "$(pulse)"
       },
       {
-        "command": "agyDartPanel.copyHandoffBrief",
+        "command": "agyFusion.copyHandoffBrief",
         "title": "%command.copyHandoffBrief.title%",
         "category": "%extension.category%",
         "icon": "$(clippy)"
       },
       {
-        "command": "agyDartPanel.openConfig",
+        "command": "agyFusion.openConfig",
         "title": "%command.openConfig.title%",
         "category": "%extension.category%",
         "icon": "$(gear)"
       },
       {
-        "command": "agyDartPanel.restartBackend",
+        "command": "agyFusion.restartBackend",
         "title": "%command.restartBackend.title%",
         "category": "%extension.category%",
         "icon": "$(debug-restart)"
       },
       {
-        "command": "agyDartPanel.showLogs",
+        "command": "agyFusion.showLogs",
         "title": "%command.showLogs.title%",
         "category": "%extension.category%",
         "icon": "$(output)"
@@ -135,48 +174,53 @@
     "menus": {
       "view/title": [
         {
-          "command": "agyDartPanel.refresh",
-          "when": "view == agyDartPanel.sidebarView",
+          "command": "agyFusion.refresh",
+          "when": "view == agyFusion.sidebarView",
           "group": "navigation@1"
         },
         {
-          "command": "agyDartPanel.openEditorTab",
-          "when": "view == agyDartPanel.sidebarView",
+          "command": "agyFusion.switchAccount",
+          "when": "view == agyFusion.sidebarView",
           "group": "navigation@2"
         },
         {
-          "command": "agyDartPanel.switchMode",
-          "when": "view == agyDartPanel.sidebarView",
+          "command": "agyFusion.openEditorTab",
+          "when": "view == agyFusion.sidebarView",
           "group": "navigation@3"
         },
         {
-          "command": "agyDartPanel.runDoctor",
-          "when": "view == agyDartPanel.sidebarView",
+          "command": "agyFusion.switchMode",
+          "when": "view == agyFusion.sidebarView",
           "group": "navigation@4"
         },
         {
-          "command": "agyDartPanel.togglePause",
-          "when": "view == agyDartPanel.sidebarView",
+          "command": "agyFusion.runDoctor",
+          "when": "view == agyFusion.sidebarView",
+          "group": "navigation@5"
+        },
+        {
+          "command": "agyFusion.togglePause",
+          "when": "view == agyFusion.sidebarView",
           "group": "secondary@1"
         },
         {
-          "command": "agyDartPanel.copyHandoffBrief",
-          "when": "view == agyDartPanel.sidebarView",
+          "command": "agyFusion.copyHandoffBrief",
+          "when": "view == agyFusion.sidebarView",
           "group": "secondary@2"
         },
         {
-          "command": "agyDartPanel.openConfig",
-          "when": "view == agyDartPanel.sidebarView",
+          "command": "agyFusion.openConfig",
+          "when": "view == agyFusion.sidebarView",
           "group": "secondary@3"
         },
         {
-          "command": "agyDartPanel.restartBackend",
-          "when": "view == agyDartPanel.sidebarView",
+          "command": "agyFusion.restartBackend",
+          "when": "view == agyFusion.sidebarView",
           "group": "secondary@4"
         },
         {
-          "command": "agyDartPanel.showLogs",
-          "when": "view == agyDartPanel.sidebarView",
+          "command": "agyFusion.showLogs",
+          "when": "view == agyFusion.sidebarView",
           "group": "secondary@5"
         }
       ]
@@ -184,47 +228,54 @@
     "configuration": {
       "title": "%config.title%",
       "properties": {
-        "agyDartPanel.defaultTab": {
+        "agyFusion.defaultTab": {
           "type": "string",
           "default": "capsule",
           "enum": [
             "capsule",
+            "accounts",
             "dart"
           ],
           "enumDescriptions": [
             "%config.defaultTab.capsule%",
+            "%config.defaultTab.accounts%",
             "%config.defaultTab.dart%"
           ],
           "description": "%config.defaultTab.description%"
         },
-        "agyDartPanel.statusBar.enabled": {
+        "agyFusion.statusBar.enabled": {
           "type": "boolean",
           "default": true,
           "description": "%config.statusBar.enabled.description%"
         },
-        "agyDartPanel.statusBar.showCache": {
+        "agyFusion.statusBar.showAccount": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.statusBar.showAccount.description%"
+        },
+        "agyFusion.statusBar.showCache": {
           "type": "boolean",
           "default": true,
           "description": "%config.statusBar.showCache.description%"
         },
-        "agyDartPanel.statusBar.showSpeed": {
+        "agyFusion.statusBar.showSpeed": {
           "type": "boolean",
           "default": true,
           "description": "%config.statusBar.showSpeed.description%"
         },
-        "agyDartPanel.statusBar.showQuota": {
+        "agyFusion.statusBar.showQuota": {
           "type": "boolean",
           "default": true,
           "description": "%config.statusBar.showQuota.description%"
         },
-        "agyDartPanel.refreshIntervalSec": {
+        "agyFusion.refreshIntervalSec": {
           "type": "integer",
           "default": 8,
           "minimum": 3,
           "maximum": 60,
           "description": "%config.refreshIntervalSec.description%"
         },
-        "agyDartPanel.defaultScope": {
+        "agyFusion.defaultScope": {
           "type": "string",
           "default": "conversation",
           "enum": [
@@ -239,33 +290,85 @@
           ],
           "description": "%config.defaultScope.description%"
         },
-        "agyDartPanel.capsule.cacheWarnMin": {
+        "agyFusion.capsule.cacheWarnMin": {
           "type": "integer",
           "default": 3,
           "minimum": 1,
           "maximum": 998,
           "description": "%config.capsule.cacheWarnMin.description%"
         },
-        "agyDartPanel.capsule.cacheColdMin": {
+        "agyFusion.capsule.cacheColdMin": {
           "type": "integer",
           "default": 4,
           "minimum": 2,
           "maximum": 999,
           "description": "%config.capsule.cacheColdMin.description%"
         },
-        "agyDartPanel.capsule.queueWarnSec": {
+        "agyFusion.capsule.queueWarnSec": {
           "type": "integer",
           "default": 30,
           "minimum": 1,
           "maximum": 999,
           "description": "%config.capsule.queueWarnSec.description%"
         },
-        "agyDartPanel.pluginPath": {
+        "agyFusion.account.reloadAfterSwitch": {
+          "type": "string",
+          "default": "coldRestart",
+          "enum": [
+            "coldRestart",
+            "ask",
+            "auto",
+            "none"
+          ],
+          "enumDescriptions": [
+            "%config.account.reloadAfterSwitch.coldRestart%",
+            "%config.account.reloadAfterSwitch.ask%",
+            "%config.account.reloadAfterSwitch.auto%",
+            "%config.account.reloadAfterSwitch.none%"
+          ],
+          "description": "%config.account.reloadAfterSwitch.description%"
+        },
+        "agyFusion.account.syncGeminiCli": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.account.syncGeminiCli.description%"
+        },
+        "agyFusion.account.syncOnboardingState": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.account.syncOnboardingState.description%"
+        },
+        "agyFusion.account.privacyMask": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.account.privacyMask.description%"
+        },
+        "agyFusion.account.autoHealMode": {
+          "type": "string",
+          "default": "ask",
+          "enum": [
+            "ask",
+            "auto",
+            "notify"
+          ],
+          "enumDescriptions": [
+            "%config.account.autoHealMode.ask%",
+            "%config.account.autoHealMode.auto%",
+            "%config.account.autoHealMode.notify%"
+          ],
+          "description": "%config.account.autoHealMode.description%"
+        },
+        "agyFusion.account.keepFreshBackup": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.account.keepFreshBackup.description%"
+        },
+        "agyFusion.pluginPath": {
           "type": "string",
           "default": "",
           "description": "%config.pluginPath.description%"
         },
-        "agyDartPanel.nodePath": {
+        "agyFusion.nodePath": {
           "type": "string",
           "default": "",
           "description": "%config.nodePath.description%"
@@ -275,6 +378,6 @@
   },
   "scripts": {
     "package": "node ./scripts/package-vsix.js",
-    "test": "node --test ./test/panel.test.js"
+    "test": "node --test ./test/panel.test.js ./test/account.test.js"
   }
 }

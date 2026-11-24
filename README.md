@@ -1,53 +1,68 @@
-# agy-dart 融合控制台扩展 (`agy-dart-ide-panel`)
+# Antigravity 融合面板 (`agy-fusion-panel`)
 
-面向 **Antigravity IDE**（VS Code 架构）的独立侧边栏与全宽融合控制面板扩展，**零外部运行期依赖**，无需开启 `--remote-debugging-port` 调试端口即可在一处统一使用 **`agy-dart` 上下文护栏与缓存诊断** 及 **`agy-capsule` 实时 API 遥测、多模型配额与用量看板**。
+面向 **Antigravity IDE**（VS Code 架构）的一站式侧边栏与全宽融合控制面板扩展，**零外部运行期依赖**，由原 `agy-dart-ide-panel` 升级整合而来，在一处统一提供 **实时 API 遥测与多模型配额监控**、**多账号加密保险库与一键无弹窗切换**，以及 **`agy-dart` 上下文护栏与 KV-Cache 诊断**。
 
 ## 核心能力
 
 ### 1. 页签一：实时遥测与用量（Capsule 引擎）
-- **精确 API 上下文拆解**：直接只读解码本地 `conversations/<uuid>.db` Protobuf 数据，展示首轮基线 / 读取增量 / 思考累计 / 回复写入 4 项真实数值与占比、模型精确上限、压缩断点识别与 75% / 90% 过载变色预警。
-- **生成速度、TTFT 与本轮统计**：实时计算最近一次请求生成速度（`tok/s`）、含 15 秒保色状态指示点（绿 ≥25 / 黄 10–25 / 红 <10）、`TTFT–总耗时` 范围及本轮累计耗时 / 请求数 / 思考 / 写入。
-- **8 类请求报错归因与首字等待预警**：自动识别 `429 限流`、`额度耗尽`、`上下文超限`、`请求超时`、`断连`、`认证异常`、`服务繁忙` 等故障，并支持慢首字等待超时计时提醒。
-- **多模型配额池**：自动发现本机 `daemon/hub_*.json` 并查询 5 小时 / 每周配额余量、重置倒计时与订阅层级。
-- **历史 Token 用量看板（按需增量扫描）**：今日 / 本周 / 本月 / 累计汇总、53 周 GitHub 风格每日 / 每周活动热力图，以及按模型系列归并的日 / 周 / 月堆叠柱状图。
+- **精确 API 上下文拆解**：只读解码本地 `conversations/<uuid>.db` Protobuf 数据，展示首轮基线 / 读取增量 / 思考累计 / 回复写入 4 项真实数值与占比、模型上限及过载预警。
+- **生成速度、TTFT 与本轮统计**：实时计算最近一次请求生成速度（`tok/s`）、状态指示点、`TTFT–总耗时` 范围及本轮累计请求统计。
+- **8 类请求报错归因与首字等待预警**：自动识别 `429 限流`、`额度耗尽`、`上下文超限`、`请求超时`、`断连`、`认证异常`、`服务繁忙` 等故障。
+- **多模型配额池与历史用量看板**：自动探测本机 `daemon/hub_*.json` 查询 5 小时 / 每周配额余量，并提供 53 周热力图与按模型系列统计柱状图。
 
-### 2. 页签二：护栏与缓存诊断（agy-dart 引擎）
-- 完整托管并代理本机已安装的 `agy-dart` 仪表盘与 15 个 `/api/*` 接口（上下文节省率、KV-Cache 命中率 / 水位 / TTL 倒计时、Handoff 交接简报、FTS5 本地索引检索、豁免文件类型与存储压缩）。
+### 2. 页签二：多账号一键切换（纯本地退出快照 + 实时倒计时）
+- **底层 OS 凭据直写 + 冷重启彻底免引导弹窗**：直接读写 Antigravity IDE 真实主凭据（Windows 凭据管理器 `gemini:antigravity` / macOS Keychain / Linux Secret Service），切号前自动备份当前号且写入失败自动回滚；默认切号后通过脱离助手进程先优雅退出 IDE 主进程释放缓存，再原子同步 `state.vscdb` 全部引导完成键（含 `lastLoginUsername` 与 `lastLoginIsGcpTos`）并自动拉起恢复工作区，彻底根治重复弹出「One last thing...」。
+- **纯本地「在线实时 + 退出快照 + 满额倒计时」余额追踪**：
+  - 当前活跃账号直连本地 Antigravity Hub 展示实时余量；
+  - 切走/登出前自动采集并保存退出瞬间余额快照与 `resetTime`；
+  - 后台休眠账号零网络请求，纯本地秒级倒计时恢复满额时间，跨过重置点自动翻转为 `100% · 已回满`，并支持「可用余量降序 + 同余量最快回满优先」智能排序与低配额推荐。
+- **多来源便捷入库**：支持一键捕获当前账号、官方浏览器 OAuth 登录新增、一次性只读导入 `~/.antigravity_tools` / `~/.gemini`，以及加密或脱敏 JSON 备份导入导出。
+- **安全治理与防掉线护盾**：敏感令牌全程加密存放在 VS Code `SecretStorage`；内置 **凭据持续保鲜备份**、**5 维认证健康体检**（OS 主凭据 / 双端同步 / `auth.log` TLS 与 `loginError` 监测 / 多窗口实例 / Keyring 异常标记）与 **一键免重登自愈**。
 
-### 3. 底部状态栏 3 枚微胶囊 & 快捷命令
-- **主胶囊**：上下文占比 + `agy-dart` 节省率 / 暂停提醒。
-- **缓存与速度 / 报错 / 等待胶囊**：实时展示 Prompt 缓存冷热状态与 `tok/s`，遇到请求失败或首字慢等待自动变色提醒。
-- **配额胶囊**：展示当前活跃模型池的 5 小时 / 每周余量及完整悬停详情。
+### 3. 页签三：护栏与缓存诊断（agy-dart 引擎）
+- 完整托管并代理本机已安装的 `agy-dart` 仪表盘与 `/api/*` 接口（上下文节省率、KV-Cache 命中率 / TTL 倒计时、Handoff 交接简报、FTS5 本地索引与保护模式一键切换）。
 
-## 安装方式
+### 4. 底部状态栏 5 枚微胶囊
+- **账号胶囊**：显示当前账号别名/邮箱，单击直达左侧账号页；悬停展示按「可用余量 + 最快回满」排序的可点击秒切浮窗。
+- **主护栏胶囊**：上下文占比 + `agy-dart` 节省率 / 暂停提醒。
+- **缓存与速度 / 报错 / 等待胶囊**：实时提示 Prompt 缓存冷热状态与生成速度。
+- **配额胶囊**：展示当前选中模型所属配额池的 5 小时 / 每周余量及悬停详情。
 
-### 方式一：从 GitHub Releases 下载安装（推荐）
-1. 前往本仓库 [Releases](https://github.com/mingk-ong/agy-dart-ide-panel/releases) 页面下载最新版本的 `.vsix` 安装包（例如 `agy-dart-ide-panel-2.2.2.vsix`）。
-2. 在 Antigravity IDE 中按 `Ctrl+Shift+P` 执行 **`Extensions: Install from VSIX...`**，或在终端运行：
-   ```powershell
-   antigravity-ide --install-extension .\agy-dart-ide-panel-2.2.2.vsix --force
-   ```
+## 安装与从旧版迁移
 
-### 方式二：从源码本地打包安装
+### 从旧版 `agy-dart-ide-panel` 升级
+- 首次激活会自动将旧版全局配置 `agyDartPanel.*` 一次性迁移至 `agyFusion.*`，并保留你的面板视图偏好与语言设置。
+- 为避免侧边栏与状态栏重复显示，建议卸载旧扩展：
+  ```powershell
+  antigravity-ide --uninstall-extension local.agy-dart-ide-panel
+  ```
+
+### 安装新版 VSIX
+```powershell
+antigravity-ide --install-extension .\agy-fusion-panel-4.0.1.vsix --force
+```
+
+### 从源码构建与测试
 需要本机已安装 **Node.js >= 22**（零 `npm install` 外部依赖）：
 
 ```powershell
-git clone https://github.com/mingk-ong/agy-dart-ide-panel.git
-cd agy-dart-ide-panel
 npm test
 npm run package
-antigravity-ide --install-extension .\agy-dart-ide-panel-2.2.2.vsix --force
 ```
 
 ## 常用配置项
 
-- `agyDartPanel.defaultTab`：默认展示主页签（`capsule` 实时遥测 | `dart` 护栏诊断）。
-- `agyDartPanel.statusBar.enabled` / `.showCache` / `.showSpeed` / `.showQuota`：控制底部状态栏各微胶囊显隐。
-- `agyDartPanel.refreshIntervalSec`：轮询刷新间隔（3–60 秒，默认 8 秒）。
-- `agyDartPanel.capsule.cacheWarnMin` / `cacheColdMin` / `queueWarnSec`：缓存变黄 / 变红分钟数与首字等待阈值秒数。
-- `agyDartPanel.pluginPath` / `agyDartPanel.nodePath`：可选自定义 `agy-dart` 插件目录或 Node.js (>=22) 路径（留空则自动探测）。
+- `agyFusion.defaultTab`：默认展示主页签（`capsule` | `accounts` | `dart`）。
+- `agyFusion.statusBar.enabled` / `.showAccount` / `.showCache` / `.showSpeed` / `.showQuota`：控制底部状态栏各微胶囊显隐。
+- `agyFusion.account.reloadAfterSwitch`：切号后生效策略（`coldRestart` 冷重启免弹窗·推荐 | `ask` 弹窗选择 | `auto` 快速重载 | `none` 仅写凭据）。
+- `agyFusion.account.syncGeminiCli`：切号时是否同步更新 `~/.gemini` 兼容凭据文件。
+- `agyFusion.account.syncOnboardingState`：冷重启时是否自动原子同步本地 `state.vscdb` 引导完成记录。
+- `agyFusion.account.privacyMask`：是否在面板与状态栏对邮箱进行脱敏打码。
+- `agyFusion.account.autoHealMode`：检测到凭据丢失或 `loginError` 时的自愈策略（`ask` | `auto` | `notify`）。
+- `agyFusion.account.keepFreshBackup`：是否静默持续保鲜同步系统新刷新的 OAuth 令牌。
+- `agyFusion.refreshIntervalSec` / `defaultScope` / `pluginPath` / `nodePath`：轮询与运行时配置。
 
-## 致谢与许可
+## 许可协议
 
 - 本项目基于 [MIT License](LICENSE) 开源。
-- 第三方协议声明与致谢详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)（参考并适配了 MIT 许可的 `agy-dart` 与 `agy-capsule`）。
+- 第三方协议声明详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

@@ -8,10 +8,16 @@ const { buildDashboardHtml, buildUnavailableHtml } = require("./htmlBuilder");
 const { getAgyDartConfigPath } = require("./paths");
 const { listRecentConversations } = require("./conversations");
 
-const LANG_STATE_KEY = "agyDartPanel.preferredLang";
-const CONV_MODE_STATE_KEY = "agyDartPanel.conversationSelection";
-const ACTIVE_TAB_STATE_KEY = "agyDartPanel.activeTab";
-const CAPSULE_UI_STATE_KEY = "agyDartPanel.capsuleUiState";
+const LANG_STATE_KEY = "agyFusion.preferredLang";
+const CONV_MODE_STATE_KEY = "agyFusion.conversationSelection";
+const ACTIVE_TAB_STATE_KEY = "agyFusion.activeTab";
+const CAPSULE_UI_STATE_KEY = "agyFusion.capsuleUiState";
+
+const LEGACY_LANG_STATE_KEY = "agyDartPanel.preferredLang";
+const LEGACY_CONV_MODE_STATE_KEY = "agyDartPanel.conversationSelection";
+const LEGACY_ACTIVE_TAB_STATE_KEY = "agyDartPanel.activeTab";
+const LEGACY_CAPSULE_UI_STATE_KEY = "agyDartPanel.capsuleUiState";
+const VALID_TABS = new Set(["capsule", "accounts", "dart"]);
 
 const MUTATING_API_PATHS = new Set([
   "/api/cutoff",
@@ -53,7 +59,7 @@ const PROTECTION_MODES = [
 ];
 
 /**
- * 统一管理侧边栏视图、全宽编辑器标签页、双页签状态、对话追踪与快捷命令。
+ * 统一管理侧边栏视图、全宽编辑器标签页、三页签状态、对话追踪与快捷命令。
  */
 class DashboardController {
   /**
@@ -61,6 +67,7 @@ class DashboardController {
    *   context: vscode.ExtensionContext,
    *   backendClient: import("./backendClient").AgyDartBackendClient,
    *   capsuleClient: import("./capsuleClient").CapsuleClient,
+   *   accountManager?: import("./accountManager").AccountManager,
    *   resolveRuntime: () => { ok: boolean, pluginRoot?: string, nodePath?: string, error?: string },
    *   resolveNodePath: () => { ok: boolean, nodePath?: string, error?: string },
    *   logger: { log: (msg: string) => void, show: () => void },
@@ -71,6 +78,7 @@ class DashboardController {
     this._context = options.context;
     this._backend = options.backendClient;
     this._capsule = options.capsuleClient;
+    this._accountManager = options.accountManager || null;
     this._resolveRuntime = options.resolveRuntime;
     this._resolveNodePath = options.resolveNodePath;
     this._logger = options.logger;
@@ -79,23 +87,28 @@ class DashboardController {
     this._sidebarView = null;
     this._editorPanel = null;
 
-    const storedLang = this._context.globalState.get(LANG_STATE_KEY);
+    const getStateWithLegacy = (key, legacyKey) => {
+      const cur = this._context.globalState.get(key);
+      return cur !== undefined ? cur : this._context.globalState.get(legacyKey);
+    };
+
+    const storedLang = getStateWithLegacy(LANG_STATE_KEY, LEGACY_LANG_STATE_KEY);
     if (storedLang === "zh" || storedLang === "en") {
       this._lang = storedLang;
     } else {
       this._lang = String(vscode.env.language || "").toLowerCase().startsWith("zh") ? "zh" : "en";
     }
 
-    const storedSel = this._context.globalState.get(CONV_MODE_STATE_KEY);
+    const storedSel = getStateWithLegacy(CONV_MODE_STATE_KEY, LEGACY_CONV_MODE_STATE_KEY);
     this._selectionMode = typeof storedSel === "string" && storedSel.trim() ? storedSel.trim() : "auto";
 
-    const cfgDefaultTab = vscode.workspace.getConfiguration("agyDartPanel").get("defaultTab", "capsule");
-    const storedTab = this._context.globalState.get(ACTIVE_TAB_STATE_KEY);
-    this._activeTab = storedTab === "dart" || storedTab === "capsule"
+    const cfgDefaultTab = vscode.workspace.getConfiguration("agyFusion").get("defaultTab", "capsule");
+    const storedTab = getStateWithLegacy(ACTIVE_TAB_STATE_KEY, LEGACY_ACTIVE_TAB_STATE_KEY);
+    this._activeTab = VALID_TABS.has(storedTab)
       ? storedTab
-      : (cfgDefaultTab === "dart" ? "dart" : "capsule");
+      : (VALID_TABS.has(cfgDefaultTab) ? cfgDefaultTab : "capsule");
 
-    const storedCapUi = this._context.globalState.get(CAPSULE_UI_STATE_KEY);
+    const storedCapUi = getStateWithLegacy(CAPSULE_UI_STATE_KEY, LEGACY_CAPSULE_UI_STATE_KEY);
     this._capsuleUiState = {
       usageOpen: Boolean(storedCapUi && storedCapUi.usageOpen),
       usageScope: storedCapUi && storedCapUi.usageScope === "all" ? "all" : "conversation",
@@ -117,7 +130,7 @@ class DashboardController {
   }
 
   getCapsulePrefs() {
-    const cfg = vscode.workspace.getConfiguration("agyDartPanel");
+    const cfg = vscode.workspace.getConfiguration("agyFusion");
     const warnMin = Math.max(1, Math.min(998, Number(cfg.get("capsule.cacheWarnMin", 3)) || 3));
     let coldMin = Math.max(2, Math.min(999, Number(cfg.get("capsule.cacheColdMin", 4)) || 4));
     if (coldMin <= warnMin) coldMin = Math.min(999, warnMin + 1);
@@ -171,8 +184,8 @@ class DashboardController {
     }
 
     const panel = vscode.window.createWebviewPanel(
-      "agyDartPanel.editorView",
-      "agy-dart 融合控制台",
+      "agyFusion.editorView",
+      "Antigravity 融合面板",
       vscode.ViewColumn.Active,
       { enableScripts: true, retainContextWhenHidden: true }
     );
@@ -188,7 +201,7 @@ class DashboardController {
   }
 
   async focusSidebar(targetTab) {
-    if (targetTab === "capsule" || targetTab === "dart") {
+    if (VALID_TABS.has(targetTab)) {
       this._activeTab = targetTab;
       await this._context.globalState.update(ACTIVE_TAB_STATE_KEY, targetTab);
       this._postToAll({ type: "setActiveTab", tab: targetTab });
@@ -198,7 +211,7 @@ class DashboardController {
       this._postToAll({ type: "setActiveTab", tab: this._activeTab });
       return;
     }
-    await vscode.commands.executeCommand("workbench.view.extension.agyDartPanel");
+    await vscode.commands.executeCommand("workbench.view.extension.agyFusion");
     if (this._sidebarView) {
       this._sidebarView.show?.(true);
     }
@@ -224,6 +237,10 @@ class DashboardController {
     this._postToAll({ type: "refresh" });
   }
 
+  notifyAccountsChanged() {
+    this._postToAll({ type: "accountsUpdated" });
+  }
+
   async _renderWebview(webview, mode) {
     this.syncConversations(false);
     const nodeRes = this._resolveNodePath();
@@ -246,7 +263,7 @@ class DashboardController {
         : (runtime.error || err.message);
     }
 
-    const cfg = vscode.workspace.getConfiguration("agyDartPanel");
+    const cfg = vscode.workspace.getConfiguration("agyFusion");
     const defaultScope = cfg.get("defaultScope", "conversation");
     const initialState = {
       lang: this._lang,
@@ -358,7 +375,7 @@ class DashboardController {
       }
 
       if (msg.type === "saveCapsulePrefs" && msg.prefs && typeof msg.prefs === "object") {
-        const cfg = vscode.workspace.getConfiguration("agyDartPanel");
+        const cfg = vscode.workspace.getConfiguration("agyFusion");
         const warn = Math.max(1, Math.min(998, Number(msg.prefs.cacheWarnMin) || 3));
         const cold = Math.max(warn + 1, Math.min(999, Number(msg.prefs.cacheColdMin) || 4));
         const queue = Math.max(1, Math.min(999, Number(msg.prefs.queueWarnSec) || 30));
@@ -376,10 +393,66 @@ class DashboardController {
         return;
       }
 
-      if (msg.type === "setActiveTab" && (msg.tab === "capsule" || msg.tab === "dart")) {
+      if (msg.type === "setActiveTab" && VALID_TABS.has(msg.tab)) {
         this._activeTab = msg.tab;
         await this._context.globalState.update(ACTIVE_TAB_STATE_KEY, msg.tab);
         this._broadcastOtherWebview(webview, { type: "setActiveTab", tab: msg.tab });
+        return;
+      }
+
+      if (msg.type && String(msg.type).startsWith("account")) {
+        if (!this._accountManager) {
+          webview.postMessage({ type: "accountResult", id: msg.id, ok: false, error: "账号模块未初始化" });
+          return;
+        }
+        try {
+          let data = null;
+          switch (msg.type) {
+            case "accountState":
+              data = await this._accountManager.getActiveState({ forceQuota: Boolean(msg.forceQuota) });
+              break;
+            case "accountCapture":
+              data = await this._accountManager.captureCurrentAccount({ silent: false });
+              break;
+            case "accountSwitch":
+              data = await this._accountManager.switchAccount(msg.accountId);
+              break;
+            case "accountRename":
+              data = await this._accountManager.renameAccount(msg.accountId, msg.alias);
+              break;
+            case "accountDelete":
+              data = await this._accountManager.deleteAccount(msg.accountId);
+              break;
+            case "accountImportTools":
+              data = await this._accountManager.importExternalAccounts();
+              break;
+            case "accountImportFile":
+              data = await this._accountManager.importFromJsonFile();
+              break;
+            case "accountExport":
+              data = await this._accountManager.exportToJsonFile();
+              break;
+            case "accountOAuthLogin":
+              data = await this._accountManager.addAccountViaOfficialOAuth();
+              break;
+            case "accountSavePrefs":
+              data = await this._accountManager.saveAccountPrefs(msg.prefs || {});
+              break;
+            case "accountHealth":
+              data = await this._accountManager.runAuthHealthCheck({ forceQuota: true });
+              break;
+            case "accountHeal":
+              data = await this._accountManager.healActiveAccount({
+                targetAccountId: msg.targetAccountId
+              });
+              break;
+            default:
+              throw new Error(`未知账号操作: ${msg.type}`);
+          }
+          webview.postMessage({ type: "accountResult", id: msg.id, ok: true, data });
+        } catch (err) {
+          webview.postMessage({ type: "accountResult", id: msg.id, ok: false, error: err.message });
+        }
         return;
       }
 
@@ -641,7 +714,7 @@ class DashboardController {
     await this.refreshAll({ reloadHtml: true });
     this._onTelemetryMutated();
     if (errors.length === 0) {
-      void vscode.window.showInformationMessage("agy-dart 融合面板后端已重启并就绪");
+      void vscode.window.showInformationMessage("Antigravity 融合面板后端已重启并就绪");
     } else {
       void vscode.window.showWarningMessage(`后端重启完成，部分服务提示：${errors.join("；")}`);
     }

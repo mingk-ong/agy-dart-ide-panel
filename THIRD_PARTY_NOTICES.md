@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-This extension incorporates clean-room adaptations and protocol/UI patterns from the following MIT-licensed open-source projects:
+This extension (`agy-fusion-panel`, evolved from `agy-dart-ide-panel`) incorporates clean-room adaptations and protocol/UI patterns from the following MIT-licensed open-source projects:
 
 1. **agy-dart** (https://github.com/zou172866/agy-dart)
    - License: MIT
