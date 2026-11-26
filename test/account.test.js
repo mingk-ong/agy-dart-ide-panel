@@ -26,9 +26,14 @@ const {
   sortAccountsByQuota
 } = require("../src/accountStore");
 const {
+  formatTierShortName,
+  isGeminiQuotaGroup,
+  classifyBucketWindow,
+  pickWindowBuckets,
   evaluateBucketStatus,
   evaluateQuotaSnapshot,
-  formatCountdown
+  formatCountdown,
+  summarizeGeminiQuotaForHover
 } = require("../src/quotaTracker");
 const {
   getAccountCss,
@@ -662,7 +667,7 @@ test("accountManager: 退出余额定格、冷重启调用、失败自动回退�
     const disposedGuard = await manager.keepFreshAndGuard({ force: true });
     assert.equal(disposedGuard.reason, "disposed");
 
-    // 6. StatusBarController 悬停显示「在线实时 / 退出余额+倒计时 / 已回满」，无废弃指令
+    // 6. StatusBarController 悬停显示「套餐简称 + 仅 Gemini 5h/周额度与恢复倒计时」，无废弃指令
     const sb = new StatusBarController({
       backendClient: { async requestApi() { return { ok: false }; } },
       capsuleClient: { async inspectConversation() { return null; }, async getQuota() { return null; } },
@@ -671,29 +676,69 @@ test("accountManager: 退出余额定格、冷重启调用、失败自动回退�
       resolveRuntime: () => ({ ok: false }),
       logger: { log() {} }
     });
+    const weekFutureIso = new Date(Date.now() + (4 * 86400 + 5 * 3600) * 1000).toISOString();
     await store.upsertAccount(
       {
         email: "recovered@example.com",
         alias: "已回满号",
-        tierName: "Pro",
+        tierName: "Google AI Pro",
         quotaSnapshot: {
           fetchedAtMs: Date.now() - 6 * 3600_000,
           exitedAtMs: Date.now() - 6 * 3600_000,
-          groups: [{ displayName: "Gemini Models", buckets: [{ window: "5h", remainingFraction: 0.2, resetTime: pastIso }] }]
+          groups: [
+            {
+              displayName: "Gemini Models",
+              buckets: [
+                { bucketId: "gemini-weekly", window: "weekly", remainingFraction: 0.09, resetTime: weekFutureIso },
+                { bucketId: "gemini-5h", window: "5h", remainingFraction: 0.2, resetTime: pastIso }
+              ]
+            },
+            {
+              displayName: "Claude and GPT models",
+              buckets: [
+                { bucketId: "3p-weekly", window: "weekly", remainingFraction: 1, resetTime: weekFutureIso },
+                { bucketId: "3p-5h", window: "5h", remainingFraction: 1, resetTime: futureIso }
+              ]
+            }
+          ]
         }
       },
       { accessToken: "at_rec", refreshToken: "rt_rec", expiryMs: Date.now() + 3600_000 }
     );
-    sb._updateAccountCapsule({ userEmail: "active@example.com", userTierName: "Pro" });
+    await store.upsertAccount(
+      {
+        email: "starter@example.com",
+        tierName: "Antigravity Starter Quota",
+        quotaSnapshot: {
+          fetchedAtMs: Date.now() - 1000,
+          exitedAtMs: Date.now() - 1000,
+          groups: [
+            {
+              displayName: "Gemini Models",
+              buckets: [{ bucketId: "gemini-5h", window: "5h", remainingFraction: 0.4, resetTime: futureIso }]
+            }
+          ]
+        }
+      },
+      { accessToken: "at_st", refreshToken: "rt_st", expiryMs: Date.now() + 3600_000 }
+    );
+    sb._updateAccountCapsule({ userEmail: "active@example.com", userTierName: "Google AI Pro" });
     const tip = sb._accountItem.tooltip.value;
-    assert.ok(tip.includes("100%\\(已回满\\)"), "已过重置点的后台号应显示已回满");
-    assert.ok(tip.includes("40%\\(满额 "), "倒计时中的后台号应显示退出余量与满额倒计时");
+    assert.ok(tip.includes("· Pro\n"), "当前活跃行套餐应显示简称 Pro");
+    assert.ok(tip.includes("\\[Pro\\]"), "列表套餐应显示简称 [Pro]");
+    assert.ok(tip.includes("\\[Starter\\]"), "Antigravity Starter Quota 应压缩显示为 [Starter]");
+    assert.equal(tip.includes("Google AI Pro"), false, "底栏悬停不应出现冗长套餐全称 Google AI Pro");
+    assert.equal(tip.includes("Antigravity Starter Quota"), false, "底栏悬停不应出现冗长套餐全称");
+    assert.equal(tip.includes("Claude"), false, "底栏悬停应只显示 Gemini 相关用量，排除 Claude/GPT");
+    assert.ok(tip.includes("5h 100%\\(已回满\\)"), "已过重置点的 5h 桶应显示已回满");
+    assert.ok(tip.includes("周 9%\\(满额 4d"), "周额度恢复中应同时显示周余量与恢复倒计时");
+    assert.ok(tip.includes("5h 40%\\(满额 "), "倒计时中的后台号应显示 5h 退出余量与满额倒计时");
     assert.equal(sb._accountItem.tooltip.isTrusted.enabledCommands.includes("agyFusion.syncAllQuotas"), false);
     assert.equal(sb._accountItem.tooltip.isTrusted.enabledCommands.includes("agyFusion.warmupAllAccounts"), false);
 
     // 验证隐私打码
     await manager.saveAccountPrefs({ privacyMask: true });
-    sb._updateAccountCapsule({ userEmail: "active@example.com", userTierName: "Pro" });
+    sb._updateAccountCapsule({ userEmail: "active@example.com", userTierName: "Google AI Pro" });
     assert.equal(sb._accountItem.text, "$(account) ac***");
     assert.equal(sb._accountItem.tooltip.value.includes("active@example.com"), false);
     sb.dispose();
@@ -890,6 +935,11 @@ test("extension & accountUi: 配置迁移(含v4冷重启升级)/前端脚本语�
   assert.equal(html.includes("acc-warmup-all-btn"), false, "已移除预热按钮");
   assert.equal(html.includes('value="coldRestart"'), true);
   assert.equal(scriptHtml.includes("acc-countdown-chip"), true);
+  assert.equal(css.includes(".acc-qgroup"), true, "详情页应包含双窗口分组样式");
+  assert.equal(css.includes(".acc-win-tag.is-weekly"), true, "详情页应包含周额度徽标样式");
+  assert.equal(scriptHtml.includes("pickWindowBucketsClient"), true, "详情页脚本应支持 5h/周双窗口排序渲染");
+  assert.equal(scriptHtml.includes("shortTierName"), true, "详情页脚本应支持套餐简称");
+  assert.equal(scriptHtml.includes('data-quota-window="'), true, "详情页应标注每个进度条窗口类型");
 
   // 零硬编码密钥扫描
   const forbiddenPrefix = "GOCSPX" + "-";
@@ -1128,4 +1178,250 @@ test("authHealth & 防掉线护盾 & 新官方登录覆盖: 登录中/主动登�
     delete require.cache[managerPath];
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
+});
+
+test("quotaTracker & accountUi: 套餐简称映射、仅 Gemini 过滤与排序、5h+周双窗口悬停摘要及详情页双桶渲染", () => {
+  // 1. 套餐简称映射
+  assert.equal(formatTierShortName("Google AI Pro"), "Pro");
+  assert.equal(formatTierShortName("Google AI Ultra"), "Ultra");
+  assert.equal(formatTierShortName("Antigravity Starter Quota"), "Starter");
+  assert.equal(formatTierShortName("Google AI Free"), "Free");
+  assert.equal(formatTierShortName("Google AI Enterprise"), "Ent");
+  assert.equal(formatTierShortName("Google AI Business"), "Biz");
+  assert.equal(formatTierShortName(""), "");
+
+  // 2. Gemini 相关池判定
+  assert.equal(isGeminiQuotaGroup({ displayName: "Gemini Models", buckets: [{ bucketId: "gemini-5h" }] }), true);
+  assert.equal(isGeminiQuotaGroup({ displayName: "Gemini 3.8 Argon", buckets: [{ bucketId: "argon-5h" }] }), true);
+  assert.equal(
+    isGeminiQuotaGroup({
+      displayName: "Claude and GPT models",
+      buckets: [{ bucketId: "3p-weekly" }, { bucketId: "3p-5h" }]
+    }),
+    false
+  );
+  assert.equal(isGeminiQuotaGroup({ displayName: "Third-Party", buckets: [{ bucketId: "3p-5h" }] }), false);
+
+  // 3. 窗口识别与 5h 优先排序（兼容 Hub 返回 weekly 在前）
+  assert.equal(classifyBucketWindow({ bucketId: "gemini-5h", window: "5h" }), "5h");
+  assert.equal(classifyBucketWindow({ bucketId: "gemini-weekly", window: "weekly" }), "weekly");
+  const picked = pickWindowBuckets([
+    { bucketId: "gemini-weekly", window: "weekly", remainingFraction: 0.09 },
+    { bucketId: "gemini-5h", window: "5h", remainingFraction: 0.9 }
+  ]);
+  assert.equal(picked.ordered[0].window, "5h");
+  assert.equal(picked.ordered[1].window, "weekly");
+
+  // 4. geminiOnly 排序与仅 Gemini 双窗口悬停摘要
+  const now = Date.parse("2026-11-26T12:00:00Z");
+  const h2Iso = new Date(now + (2 * 3600 + 15 * 60) * 1000).toISOString();
+  const d4Iso = new Date(now + (4 * 86400 + 11 * 3600) * 1000).toISOString();
+  const pastIso = new Date(now - 300_000).toISOString();
+
+  const accLowGemWeek = {
+    email: "low-gem@test.dev",
+    tierName: "Google AI Pro",
+    quotaSnapshot: {
+      groups: [
+        {
+          displayName: "Gemini Models",
+          buckets: [
+            { bucketId: "gemini-weekly", window: "weekly", remainingFraction: 0.09, resetTime: d4Iso },
+            { bucketId: "gemini-5h", window: "5h", remainingFraction: 0.2, resetTime: pastIso }
+          ]
+        },
+        {
+          displayName: "Claude and GPT models",
+          buckets: [
+            { bucketId: "3p-weekly", window: "weekly", remainingFraction: 1, resetTime: d4Iso },
+            { bucketId: "3p-5h", window: "5h", remainingFraction: 1, resetTime: h2Iso }
+          ]
+        }
+      ]
+    }
+  };
+  const accFullGem = {
+    email: "full-gem@test.dev",
+    tierName: "Google AI Pro",
+    quotaSnapshot: {
+      groups: [
+        {
+          displayName: "Gemini Models",
+          buckets: [
+            { bucketId: "gemini-weekly", window: "weekly", remainingFraction: 0.9999, resetTime: d4Iso },
+            { bucketId: "gemini-5h", window: "5h", remainingFraction: 0.9999, resetTime: h2Iso }
+          ]
+        },
+        {
+          displayName: "Claude and GPT models",
+          buckets: [{ bucketId: "3p-5h", window: "5h", remainingFraction: 0.05, resetTime: h2Iso }]
+        }
+      ]
+    }
+  };
+
+  const gemSorted = sortAccountsByQuota([accLowGemWeek, accFullGem], now, { geminiOnly: true });
+  assert.deepEqual(
+    gemSorted.map((a) => a.email),
+    ["full-gem@test.dev", "low-gem@test.dev"],
+    "geminiOnly 排序应忽略 Claude/GPT 低余量，优先 Gemini 满血账号"
+  );
+
+  const bgSummary = summarizeGeminiQuotaForHover(accLowGemWeek, { isActive: false, nowMs: now });
+  assert.equal(bgSummary, "Gemini 5h 100%(已回满) · 周 9%(满额 4d11h)");
+  assert.equal(bgSummary.includes("Claude"), false);
+
+  const activeSummary = summarizeGeminiQuotaForHover(
+    {
+      email: "live@test.dev",
+      quotaSnapshot: {
+        groups: [
+          {
+            displayName: "Gemini Models",
+            buckets: [
+              { bucketId: "gemini-weekly", window: "weekly", remainingFraction: 0.45, resetTime: d4Iso },
+              { bucketId: "gemini-5h", window: "5h", remainingFraction: 0.18, resetTime: h2Iso }
+            ]
+          },
+          {
+            displayName: "Claude and GPT models",
+            buckets: [{ bucketId: "3p-5h", window: "5h", remainingFraction: 0.5, resetTime: h2Iso }]
+          }
+        ]
+      }
+    },
+    { isActive: true, nowMs: now }
+  );
+  assert.equal(activeSummary, "Gemini 5h 18%(2h15m) · 周 45%(4d11h)");
+
+  const fullSummary = summarizeGeminiQuotaForHover(accFullGem, { isActive: true, nowMs: now });
+  assert.equal(fullSummary, "Gemini 5h 100% · 周 100%");
+
+  // 5. 沙盒实测 accountUi 渲染：验证详情页卡片同时渲染 5h 与周额度进度条、恢复倒计时及套餐简称
+  const vm = require("node:vm");
+  const scriptCode = getAccountClientScript().replace(/^<script>/, "").replace(/<\/script>$/, "");
+  const domMap = new Map();
+  const makeEl = (id) => ({
+    id,
+    innerHTML: "",
+    textContent: "",
+    title: "",
+    value: "",
+    checked: false,
+    className: "",
+    classList: { add() {}, remove() {} },
+    setAttribute() {},
+    getAttribute() { return ""; },
+    addEventListener() {}
+  });
+  for (const id of [
+    "acc-active-email", "acc-active-sub", "acc-active-badges", "acc-hub-badge",
+    "acc-recommend-banner", "acc-recommend-text", "acc-recommend-btn",
+    "acc-count-badge", "acc-full-count-badge", "acc-list", "acc-privacy-btn",
+    "ide-tab-dot-accounts", "acc-health-badge", "acc-health-grid", "acc-health-issues"
+  ]) {
+    domMap.set(id, makeEl(id));
+  }
+  let domReadyCb = null;
+  const mockPayload = {
+    activeEmail: "active@test.dev",
+    activeName: "Tester",
+    activeTierName: "Google AI Pro",
+    activeAccountId: "id_active",
+    isCaptured: true,
+    systemCredentialPresent: true,
+    activeHubCount: 1,
+    prefs: { privacyMask: false, reloadAfterSwitch: "coldRestart" },
+    health: null,
+    recommendation: null,
+    accounts: [
+      {
+        id: "id_active",
+        email: "active@test.dev",
+        tierName: "Google AI Pro",
+        source: "captured",
+        hasRefreshToken: true,
+        quotaSnapshot: {
+          groups: [
+            {
+              displayName: "Gemini Models",
+              buckets: [
+                { bucketId: "gemini-weekly", window: "weekly", remainingFraction: 0.45, resetTime: new Date(Date.now() + 3 * 86400_000 + 2 * 3600_000).toISOString() },
+                { bucketId: "gemini-5h", window: "5h", remainingFraction: 0.6, resetTime: new Date(Date.now() + 90 * 60_000).toISOString() }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        id: "id_bg",
+        email: "bg@test.dev",
+        tierName: "Antigravity Starter Quota",
+        source: "captured",
+        hasRefreshToken: true,
+        quotaSnapshot: {
+          exitedAtMs: Date.now() - 600_000,
+          groups: [
+            {
+              displayName: "Gemini Models",
+              buckets: [
+                { bucketId: "gemini-weekly", window: "weekly", remainingFraction: 0.09, resetTime: new Date(Date.now() + 4 * 86400_000 + 5 * 3600_000).toISOString() },
+                { bucketId: "gemini-5h", window: "5h", remainingFraction: 0.2, resetTime: new Date(Date.now() - 60_000).toISOString() }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  };
+  const timers = [];
+  const sandbox = {
+    window: {
+      __AGY_IDE_STATE__: { lang: "zh" },
+      __agyIdeBridge: {
+        async accountCall() {
+          return { data: mockPayload };
+        }
+      }
+    },
+    document: {
+      hidden: false,
+      getElementById: (id) => domMap.get(id) || null,
+      querySelectorAll: () => [],
+      addEventListener: (ev, fn) => {
+        if (ev === "DOMContentLoaded") domReadyCb = fn;
+      }
+    },
+    setInterval: (fn, ms) => {
+      const id = setInterval(fn, ms);
+      if (typeof id.unref === "function") id.unref();
+      timers.push(id);
+      return id;
+    },
+    clearInterval: (id) => clearInterval(id),
+    Date,
+    Math,
+    Number,
+    String,
+    Array,
+    Object,
+    Map,
+    RegExp,
+    JSON,
+    Boolean
+  };
+  vm.runInNewContext(scriptCode, sandbox);
+  assert.ok(typeof domReadyCb === "function");
+  domReadyCb();
+  return sandbox.window.__agyAccountUi.refresh(true).then(() => {
+    for (const id of timers) clearInterval(id);
+    const listHtml = domMap.get("acc-list").innerHTML;
+    assert.ok(listHtml.includes('data-quota-window="5h"'), "详情页卡片应渲染 5h 进度条行");
+    assert.ok(listHtml.includes('data-quota-window="weekly"'), "详情页卡片应渲染周额度进度条行");
+    assert.ok(listHtml.includes('class="acc-win-tag is-weekly">周</span>'), "详情页应显示周额度标签");
+    assert.ok(listHtml.includes("满额 4d"), "后台号周额度应显示恢复满额倒计时");
+    assert.ok(listHtml.includes("3d 2h 后重置") || listHtml.includes("3d 1h 后重置"), "在线号周额度应显示重置倒计时");
+    assert.ok(listHtml.includes("100% · 已回满"), "后台号已过重置点的 5h 桶应显示已回满");
+    assert.ok(listHtml.includes('title="Antigravity Starter Quota">Starter</span>'), "卡片套餐徽标应展示简称并在 title 保留全称");
+  });
 });

@@ -283,7 +283,7 @@ function activate(context) {
     }
   } catch {}
 
-  let extVersion = "4.0.1";
+  let extVersion = "4.0.2";
   try {
     extVersion = require("../package.json").version || extVersion;
   } catch {}

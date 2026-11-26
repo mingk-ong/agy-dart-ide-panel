@@ -220,14 +220,20 @@ function getAccountCss() {
     .acc-mini-quotas {
       display: flex;
       flex-direction: column;
-      gap: 5px;
+      gap: 6px;
+    }
+
+    .acc-qgroup {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
     }
 
     .acc-mini-qrow {
       display: grid;
-      grid-template-columns: 64px minmax(0, 1fr) auto;
+      grid-template-columns: 62px 26px minmax(32px, 1fr) auto;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       font-size: 11px;
     }
 
@@ -236,6 +242,34 @@ function getAccountCss() {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      font-weight: 500;
+    }
+
+    .acc-mini-qname.is-sub {
+      color: transparent;
+      user-select: none;
+    }
+
+    .acc-win-tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 15px;
+      padding: 0 4px;
+      border-radius: 3px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .acc-win-tag.is-weekly {
+      color: var(--info-text);
+      border-color: var(--accent-border);
+      background: var(--bg-panel);
     }
 
     .acc-mini-qtrack {
@@ -709,6 +743,9 @@ function getAccountClientScript() {
         fullInFmt: '满额 {cd}',
         recoveredLabel: '100% · 已回满',
         exitRecordedTip: '退出时余量 {pct}%，已越过重置点自动回满',
+        win5h: '5h',
+        winWeekly: '周',
+        winOther: '额度',
         confirmSwitch: '确定将当前系统登录凭据切换为 {target} 吗？（切换前会自动备份并保存当前号退出余额）',
         confirmSwitchCold: '确定切换为 {target} 吗？\n\n切换前会自动备份并保存当前号退出余额，随后将自动冷重启 IDE 生效（约 3-5 秒，自动恢复工作区且不再弹出引导页）。',
         confirmDelete: '确定从本地加密保险库中删除账号 {target} 吗？此操作仅清理插件存档，不影响远程 Google 账号。',
@@ -798,6 +835,9 @@ function getAccountClientScript() {
         fullInFmt: 'Full in {cd}',
         recoveredLabel: '100% · Full',
         exitRecordedTip: 'Exit balance {pct}%, reset point passed',
+        win5h: '5h',
+        winWeekly: 'Wk',
+        winOther: 'Cap',
         confirmSwitch: 'Switch system Antigravity credential to {target}? (Current account exit balance will be saved)',
         confirmSwitchCold: 'Switch to {target}?\n\nCurrent exit balance will be saved, then the IDE will cold-restart (~3-5s, auto-restoring workspace) to prevent onboarding prompts.',
         confirmDelete: 'Remove {target} from local encrypted vault? This only deletes local saved tokens.',
@@ -886,7 +926,11 @@ function getAccountClientScript() {
       const m = Math.floor((totalSec % 3600) / 60);
       const s = totalSec % 60;
       const pad2 = (n) => (n < 10 ? '0' + n : String(n));
-      if (d > 0) return d + 'd ' + (h > 0 ? h + 'h ' : '') + (m > 0 ? m + 'm' : '');
+      if (d > 0) {
+        if (h > 0) return d + 'd ' + h + 'h';
+        if (m > 0) return d + 'd ' + m + 'm';
+        return d + 'd';
+      }
       if (h > 0) return showSeconds ? h + 'h ' + pad2(m) + 'm ' + pad2(s) + 's' : h + 'h ' + m + 'm';
       if (m > 0) return showSeconds ? m + 'm ' + pad2(s) + 's' : m + 'm';
       return totalSec + 's';
@@ -930,10 +974,12 @@ function getAccountClientScript() {
       else if (resetAtMs > nowMs) stateTag = 'recovering';
 
       return {
+        bucketId: String((b && (b.bucketId || b.bucket_id)) || '').trim(),
         window: (b && (b.window || b.bucketWindow || b.displayName)) || 'quota',
         recordedPct,
         effectiveFraction,
         effectivePct,
+        resetTime: rstStr,
         resetAtMs,
         remainingMs,
         isFull,
@@ -989,6 +1035,63 @@ function getAccountClientScript() {
       if (low.includes('claude')) return 'Claude';
       if (low.includes('gpt')) return 'GPT';
       return raw.replace(/^gemini\s+\d+(?:\.\d+)?\s+/i, '').replace(/\s+(?:models?|quota|limit)s?$/i, '').slice(0, 14) || raw;
+    }
+
+    function shortTierName(tierName) {
+      const raw = String(tierName || '').trim();
+      if (!raw) return '';
+      const low = raw.toLowerCase();
+      if (low.includes('ultra')) return 'Ultra';
+      if (/(?:^|[\s_-])pro(?:$|[\s_+-]|plan)/.test(low)) return 'Pro';
+      if (low.includes('starter')) return 'Starter';
+      if (low.includes('free')) return 'Free';
+      if (low.includes('enterprise')) return 'Ent';
+      if (low.includes('business')) return 'Biz';
+      if (low.includes('team')) return 'Team';
+      if (low.includes('standard')) return 'Std';
+      const cleaned = raw
+        .replace(/^(?:google(?:\s+one)?(?:\s+ai)?|antigravity)\s+/i, '')
+        .replace(/\s+(?:quota|plan|tier|edition|subscription)s?$/i, '')
+        .trim();
+      const out = cleaned || raw;
+      return out.length > 12 ? out.slice(0, 12).trim() : out;
+    }
+
+    function classifyBucketWindowClient(b) {
+      const w = String((b && b.window) || '').trim().toLowerCase();
+      const id = String((b && b.bucketId) || '').trim().toLowerCase();
+      if (w === '5h' || /(?:^|[\s_-])5h(?:$|[\s_-])|5[\s_-]?hour/.test(w) || /(?:^|[\s_-])5h(?:$|[\s_-])|5[\s_-]?hour/.test(id)) {
+        return '5h';
+      }
+      if (w === 'weekly' || /week|(?:^|[\s_-])7d(?:$|[\s_-])|7[\s_-]?day/.test(w) || /week|(?:^|[\s_-])7d(?:$|[\s_-])|7[\s_-]?day/.test(id)) {
+        return 'weekly';
+      }
+      return 'other';
+    }
+
+    function pickWindowBucketsClient(buckets) {
+      const list = Array.isArray(buckets) ? buckets : [];
+      let b5h = null;
+      let bWk = null;
+      const others = [];
+      for (const b of list) {
+        const kind = classifyBucketWindowClient(b);
+        if (kind === '5h' && !b5h) b5h = b;
+        else if (kind === 'weekly' && !bWk) bWk = b;
+        else others.push(b);
+      }
+      const ordered = [];
+      if (b5h) ordered.push({ bucket: b5h, kind: '5h' });
+      if (bWk) ordered.push({ bucket: bWk, kind: 'weekly' });
+      for (const o of others) ordered.push({ bucket: o, kind: 'other' });
+      return ordered;
+    }
+
+    function formatWindowTagText(kind, bucket) {
+      if (kind === '5h') return t('win5h');
+      if (kind === 'weekly') return t('winWeekly');
+      const raw = String((bucket && bucket.window) || '').trim();
+      return raw && raw.length <= 6 ? raw : t('winOther');
     }
 
     function sourceLabel(src) {
@@ -1149,8 +1252,9 @@ function getAccountClientScript() {
       if (subEl) {
         const parts = [];
         if (d.activeName) parts.push(d.activeName);
-        if (d.activeTierName) parts.push(d.activeTierName);
+        if (d.activeTierName) parts.push(shortTierName(d.activeTierName));
         subEl.textContent = parts.join(' · ') || (d.systemCredentialPresent ? t('sysCredOk') : t('sysCredMissing'));
+        subEl.title = d.activeTierName || '';
       }
       if (badgesEl) {
         const badges = [];
@@ -1288,48 +1392,67 @@ function getAccountClientScript() {
         let quotaHtml = '<div class="muted-note">' + esc(t('quotaUnknown')) + '</div>';
         if (ev && ev.groups.length > 0) {
           quotaHtml = '<div class="acc-mini-quotas">' + ev.groups.map((g) => {
-            const buckets = g.buckets || [];
-            const b5 = buckets.find((b) => b.window === '5h') || buckets[0];
-            if (!b5) return '';
+            const orderedBuckets = pickWindowBucketsClient(g.buckets);
+            if (orderedBuckets.length === 0) return '';
+            const poolShort = shortPoolName(g.displayName);
 
-            const barPct = isCurrent ? b5.recordedPct : (b5.recovered ? 100 : b5.recordedPct);
-            const fillColor = barPct <= 10 ? 'var(--danger)' : barPct <= 25 ? 'var(--warn)' : 'var(--ok)';
+            const rowsHtml = orderedBuckets.map((entry, idx) => {
+              const b = entry.bucket;
+              const kind = entry.kind;
+              const barPct = isCurrent ? b.recordedPct : (b.recovered ? 100 : b.recordedPct);
+              const fillColor = barPct <= 10 ? 'var(--danger)' : barPct <= 25 ? 'var(--warn)' : 'var(--ok)';
 
-            let rightHtml = '';
-            let valCls = '';
-            let tipAttr = '';
+              let rightHtml = '';
+              let valCls = '';
+              let tipAttr = '';
 
-            if (isCurrent) {
-              if (b5.remainingMs > 0) {
+              if (isCurrent) {
+                if (!b.isFull && b.remainingMs > 0) {
+                  rightHtml =
+                    '<span>' + b.recordedPct + '%</span>' +
+                    '<span class="acc-countdown-chip" data-is-live="1" data-reset-ms="' + b.resetAtMs + '" data-cd-fmt="resetInFmt">' +
+                      '<span class="acc-cd-text">' + esc(t('resetInFmt', { cd: formatCountdownClient(b.remainingMs, true) })) + '</span>' +
+                    '</span>';
+                } else {
+                  if (b.remainingMs > 0) {
+                    tipAttr = ' title="' + esc(t('resetInFmt', { cd: formatCountdownClient(b.remainingMs, false) })) + '"';
+                  }
+                  rightHtml = '<span>' + b.recordedPct + '%</span>';
+                }
+              } else if (b.state === 'recovered') {
+                valCls = 'is-recovered';
+                tipAttr = ' title="' + esc(t('exitRecordedTip', { pct: b.recordedPct })) + '"';
+                rightHtml = '<span>' + esc(t('recoveredLabel')) + '</span>';
+              } else if (b.state === 'recovering') {
                 rightHtml =
-                  '<span>' + b5.recordedPct + '%</span>' +
-                  '<span class="acc-countdown-chip" data-is-live="1" data-reset-ms="' + b5.resetAtMs + '" data-cd-fmt="resetInFmt">' +
-                    '<span class="acc-cd-text">' + esc(t('resetInFmt', { cd: formatCountdownClient(b5.remainingMs, true) })) + '</span>' +
+                  '<span>' + b.recordedPct + '%</span>' +
+                  '<span class="acc-countdown-chip" data-reset-ms="' + b.resetAtMs + '" data-cd-fmt="fullInFmt">' +
+                    '<span class="acc-cd-text">' + esc(t('fullInFmt', { cd: formatCountdownClient(b.remainingMs, true) })) + '</span>' +
                   '</span>';
               } else {
-                rightHtml = '<span>' + b5.recordedPct + '%</span>';
+                if (b.remainingMs > 0) {
+                  tipAttr = ' title="' + esc(t('resetInFmt', { cd: formatCountdownClient(b.remainingMs, false) })) + '"';
+                }
+                rightHtml = '<span>' + b.effectivePct + '%</span>';
               }
-            } else if (b5.state === 'recovered') {
-              valCls = 'is-recovered';
-              tipAttr = ' title="' + esc(t('exitRecordedTip', { pct: b5.recordedPct })) + '"';
-              rightHtml = '<span>' + esc(t('recoveredLabel')) + '</span>';
-            } else if (b5.state === 'recovering') {
-              rightHtml =
-                '<span>' + b5.recordedPct + '%</span>' +
-                '<span class="acc-countdown-chip" data-reset-ms="' + b5.resetAtMs + '" data-cd-fmt="fullInFmt">' +
-                  '<span class="acc-cd-text">' + esc(t('fullInFmt', { cd: formatCountdownClient(b5.remainingMs, true) })) + '</span>' +
-                '</span>';
-            } else {
-              rightHtml = '<span>' + b5.effectivePct + '%</span>';
-            }
 
-            return (
-              '<div class="acc-mini-qrow">' +
-                '<span class="acc-mini-qname" title="' + esc(g.displayName) + '">' + esc(shortPoolName(g.displayName)) + '</span>' +
-                '<div class="acc-mini-qtrack"><div class="acc-mini-qfill" style="width:' + barPct + '%;background:' + fillColor + '"></div></div>' +
-                '<span class="acc-mini-qval ' + valCls + '"' + tipAttr + '>' + rightHtml + '</span>' +
-              '</div>'
-            );
+              const winText = formatWindowTagText(kind, b);
+              const winCls = kind === 'weekly' ? 'acc-win-tag is-weekly' : 'acc-win-tag';
+              const nameCell = idx === 0
+                ? '<span class="acc-mini-qname" title="' + esc(g.displayName) + '">' + esc(poolShort) + '</span>'
+                : '<span class="acc-mini-qname is-sub" aria-hidden="true">' + esc(poolShort) + '</span>';
+
+              return (
+                '<div class="acc-mini-qrow" data-quota-window="' + esc(kind) + '">' +
+                  nameCell +
+                  '<span class="' + winCls + '">' + esc(winText) + '</span>' +
+                  '<div class="acc-mini-qtrack"><div class="acc-mini-qfill" style="width:' + barPct + '%;background:' + fillColor + '"></div></div>' +
+                  '<span class="acc-mini-qval ' + valCls + '"' + tipAttr + '>' + rightHtml + '</span>' +
+                '</div>'
+              );
+            }).join('');
+
+            return '<div class="acc-qgroup">' + rowsHtml + '</div>';
           }).join('') + '</div>';
         }
 
@@ -1354,7 +1477,7 @@ function getAccountClientScript() {
               '</div>' +
               '<div class="acc-card-tags">' +
                 (isCurrent ? '<span class="meta-tag is-ok">' + esc(t('currentTag')) + '</span>' : '') +
-                (acc.tierName ? '<span class="meta-tag is-info">' + esc(acc.tierName) + '</span>' : '') +
+                (acc.tierName ? '<span class="meta-tag is-info" title="' + esc(acc.tierName) + '">' + esc(shortTierName(acc.tierName)) + '</span>' : '') +
                 (acc.oauthClientKey === 'antigravity_enterprise'
                   ? '<span class="meta-tag is-warn" title="' + esc(t('externalClientTip')) + '">' + esc(t('externalClientTag')) + '</span>'
                   : '') +

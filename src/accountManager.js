@@ -7,9 +7,10 @@ const defaultAuthHealth = require("./authHealth");
 const defaultIdeRestart = require("./ideRestart");
 const { makeAccountId, normalizeQuotaGroups } = require("./accountStore");
 const {
+  formatTierShortName,
   evaluateQuotaSnapshot,
   sortAccountsByQuota,
-  formatCountdown
+  summarizeGeminiQuotaForHover
 } = require("./quotaTracker");
 
 const GUARD_CHECK_INTERVAL_MS = 30_000;
@@ -1196,44 +1197,17 @@ class AccountManager {
     const formatDisplayEmail = (email) => (mask ? this._bridge.maskEmail(email) : email);
     const nowMs = Date.now();
 
-    const summarizeForPicker = (acc, isActive) => {
-      const rawSnap = acc.effectiveQuotaSnapshot || acc.quotaSnapshot;
-      if (!rawSnap || !Array.isArray(rawSnap.groups) || rawSnap.groups.length === 0) {
-        return "未记录";
-      }
-      const snap = evaluateQuotaSnapshot(rawSnap, { nowMs, isActive });
-      const parts = [];
-      for (const g of snap.groups.slice(0, 2)) {
-        const b5h = (g.buckets || []).find((b) => b.window === "5h") || g.buckets?.[0];
-        if (!b5h) continue;
-        const shortName = String(g.displayName || "")
-          .replace(/\s*models?$/i, "")
-          .replace("Claude and GPT", "Claude/GPT");
-        if (isActive) {
-          const rst = b5h.remainingMs > 0 ? `(${formatCountdown(b5h.remainingMs, { compact: true })})` : "";
-          parts.push(`${shortName} ${b5h.effectivePct}%${rst}`);
-        } else if (b5h.state === "recovered") {
-          parts.push(`${shortName} 100%(已回满)`);
-        } else if (b5h.state === "recovering") {
-          const cd = formatCountdown(b5h.remainingMs, { compact: true });
-          parts.push(`${shortName} ${b5h.recordedPct}%(满额 ${cd})`);
-        } else {
-          parts.push(`${shortName} ${b5h.effectivePct}%`);
-        }
-      }
-      return parts.join(" · ") || "未记录";
-    };
-
     const items = [];
-    const sortedAccounts = sortAccountsByQuota(state.accounts, nowMs);
+    const sortedAccounts = sortAccountsByQuota(state.accounts, nowMs, { geminiOnly: true });
     for (const acc of sortedAccounts) {
       const isActive = acc.id === state.activeAccountId;
       const shownEmail = formatDisplayEmail(acc.email);
       const label = `${isActive ? "$(check) " : "$(account) "}${acc.alias ? `${acc.alias} · ${shownEmail}` : shownEmail}`;
       const descParts = [];
       if (isActive) descParts.push("在线实时");
-      if (acc.tierName) descParts.push(acc.tierName);
-      descParts.push(summarizeForPicker(acc, isActive));
+      const tierShort = formatTierShortName(acc.tierName);
+      if (tierShort) descParts.push(tierShort);
+      descParts.push(summarizeGeminiQuotaForHover(acc, { isActive, nowMs }));
       items.push({
         label,
         description: descParts.join(" · "),

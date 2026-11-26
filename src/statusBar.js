@@ -6,44 +6,13 @@ const { getAntigravityStateDirs, readSelectedAgentModelId } = require("./paths")
 const { matchQuotaGroup, formatQuotaPoolShortName } = require("./quotaMatcher");
 const { maskEmail } = require("./credentialBridge");
 const {
-  evaluateQuotaSnapshot,
+  formatTierShortName,
   sortAccountsByQuota,
-  formatCountdown
+  summarizeGeminiQuotaForHover
 } = require("./quotaTracker");
 
 function escapeMarkdownLabel(text) {
   return String(text || "").replace(/[\\[\]()*`_|<>]/g, "\\$&");
-}
-
-function summarizeAccountQuotaForHover(account, options = {}) {
-  const rawSnap = account?.effectiveQuotaSnapshot || account?.quotaSnapshot;
-  if (!rawSnap || !Array.isArray(rawSnap.groups) || rawSnap.groups.length === 0) {
-    return "未记录";
-  }
-  const isActive = Boolean(options.isActive);
-  const nowMs = Number(options.nowMs) > 0 ? Number(options.nowMs) : Date.now();
-  const snap = evaluateQuotaSnapshot(rawSnap, { nowMs, isActive });
-  const groups = snap?.groups;
-  if (!Array.isArray(groups) || groups.length === 0) return "未记录";
-  const parts = [];
-  for (const g of groups.slice(0, 3)) {
-    const buckets = Array.isArray(g?.buckets) ? g.buckets : [];
-    const b5h = buckets.find((b) => b.window === "5h") || buckets[0];
-    if (!b5h) continue;
-    const pool = formatQuotaPoolShortName(g);
-    if (isActive) {
-      const rst = b5h.remainingMs > 0 ? `(${formatCountdown(b5h.remainingMs, { compact: true })})` : "";
-      parts.push(`${pool} ${b5h.effectivePct}%${rst}`);
-    } else if (b5h.state === "recovered") {
-      parts.push(`${pool} 100%(已回满)`);
-    } else if (b5h.state === "recovering") {
-      const cd = formatCountdown(b5h.remainingMs, { compact: true });
-      parts.push(`${pool} ${b5h.recordedPct}%(满额 ${cd})`);
-    } else {
-      parts.push(`${pool} ${b5h.effectivePct}%`);
-    }
-  }
-  return parts.join(" · ") || "未记录";
 }
 
 const ERROR_LABELS = {
@@ -360,10 +329,11 @@ class StatusBarController {
       ]
     };
 
-    md.appendMarkdown("**Antigravity 账号快捷切换** *(按可用余量与最快回满排序)*\n\n");
+    md.appendMarkdown("**Antigravity 账号快捷切换** *(按 Gemini 可用余量与最快回满排序)*\n\n");
     if (email) {
       const shownActive = prefs.privacyMask ? maskEmail(email) : email;
-      const tierText = quota?.userTierName ? ` · ${escapeMarkdownLabel(quota.userTierName)}` : "";
+      const activeTierShort = formatTierShortName(quota?.userTierName || meta?.tierName);
+      const tierText = activeTierShort ? ` · ${escapeMarkdownLabel(activeTierShort)}` : "";
       md.appendMarkdown(`- **当前活跃**: ${escapeMarkdownLabel(shownActive)}${meta?.alias ? ` (${escapeMarkdownLabel(meta.alias)})` : ""}${tierText}\n`);
     } else {
       md.appendMarkdown("- **当前活跃**: 未检测到活跃登录态\n");
@@ -373,15 +343,16 @@ class StatusBarController {
     }
 
     if (allCount > 0) {
-      const sortedAccounts = sortAccountsByQuota(allAccounts, nowMs);
+      const sortedAccounts = sortAccountsByQuota(allAccounts, nowMs, { geminiOnly: true });
       const shownAccounts = sortedAccounts.slice(0, 10);
       md.appendMarkdown("\n---\n\n");
       for (const acc of shownAccounts) {
         const isCurrent = Boolean(email && acc.email && acc.email.toLowerCase() === email.toLowerCase());
         const shownEmail = prefs.privacyMask ? maskEmail(acc.email) : acc.email;
         const displayName = escapeMarkdownLabel(acc.alias ? `${acc.alias} (${shownEmail})` : shownEmail);
-        const tierTag = acc.tierName ? ` [${escapeMarkdownLabel(acc.tierName)}]` : "";
-        const qText = escapeMarkdownLabel(summarizeAccountQuotaForHover(acc, { isActive: isCurrent, nowMs }));
+        const tierShort = formatTierShortName(acc.tierName);
+        const tierTag = tierShort ? ` ${escapeMarkdownLabel(`[${tierShort}]`)}` : "";
+        const qText = escapeMarkdownLabel(summarizeGeminiQuotaForHover(acc, { isActive: isCurrent, nowMs }));
         if (isCurrent) {
           md.appendMarkdown(`- **$(check) ${displayName}**${tierTag} · ${qText} *(在线实时)*\n`);
         } else {
@@ -627,7 +598,8 @@ class StatusBarController {
 
     const md = new vscode.MarkdownString();
     md.isTrusted = false;
-    md.appendMarkdown(`**多模型配额池**${quota.userTierName ? ` (${quota.userTierName})` : ""}\n\n`);
+    const quotaTierShort = formatTierShortName(quota.userTierName);
+    md.appendMarkdown(`**多模型配额池**${quotaTierShort ? ` (${escapeMarkdownLabel(quotaTierShort)})` : ""}\n\n`);
     if (primaryModel) {
       md.appendMarkdown(`- **当前模型**: ${primaryModel} → **${poolShort}**\n`);
       if (selectedModel && activeModel && selectedModel !== activeModel) {
