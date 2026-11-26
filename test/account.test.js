@@ -936,8 +936,10 @@ test("extension & accountUi: 配置迁移(含v4冷重启升级)/前端脚本语�
   assert.equal(html.includes('value="coldRestart"'), true);
   assert.equal(scriptHtml.includes("acc-countdown-chip"), true);
   assert.equal(css.includes(".acc-qgroup"), true, "详情页应包含双窗口分组样式");
+  assert.equal(css.includes(".acc-qgroup-grid"), true, "详情页应包含双列并排紧凑布局样式");
   assert.equal(css.includes(".acc-win-tag.is-weekly"), true, "详情页应包含周额度徽标样式");
   assert.equal(scriptHtml.includes("pickWindowBucketsClient"), true, "详情页脚本应支持 5h/周双窗口排序渲染");
+  assert.equal(scriptHtml.includes("formatCountdownCompactClient"), true, "详情页脚本应使用紧凑倒计时格式");
   assert.equal(scriptHtml.includes("shortTierName"), true, "详情页脚本应支持套餐简称");
   assert.equal(scriptHtml.includes('data-quota-window="'), true, "详情页应标注每个进度条窗口类型");
 
@@ -1416,12 +1418,14 @@ test("quotaTracker & accountUi: 套餐简称映射、仅 Gemini 过滤与排序�
   return sandbox.window.__agyAccountUi.refresh(true).then(() => {
     for (const id of timers) clearInterval(id);
     const listHtml = domMap.get("acc-list").innerHTML;
-    assert.ok(listHtml.includes('data-quota-window="5h"'), "详情页卡片应渲染 5h 进度条行");
-    assert.ok(listHtml.includes('data-quota-window="weekly"'), "详情页卡片应渲染周额度进度条行");
+    assert.ok(listHtml.includes('class="acc-qgroup-grid"'), "详情页卡片应使用 2 列并排紧凑配额布局");
+    assert.ok(listHtml.includes('data-quota-window="5h"'), "详情页卡片应渲染 5h 进度条块");
+    assert.ok(listHtml.includes('data-quota-window="weekly"'), "详情页卡片应渲染周额度进度条块");
     assert.ok(listHtml.includes('class="acc-win-tag is-weekly">周</span>'), "详情页应显示周额度标签");
-    assert.ok(listHtml.includes("满额 4d"), "后台号周额度应显示恢复满额倒计时");
-    assert.ok(listHtml.includes("3d 2h 后重置") || listHtml.includes("3d 1h 后重置"), "在线号周额度应显示重置倒计时");
-    assert.ok(listHtml.includes("100% · 已回满"), "后台号已过重置点的 5h 桶应显示已回满");
+    assert.ok(listHtml.includes(">↻4d"), "后台号周额度应以紧凑格式 ↻4d.. 显示恢复倒计时");
+    assert.ok(listHtml.includes('title="满额 4d'), "后台号周额度悬停提示应保留完整中文倒计时");
+    assert.ok(listHtml.includes(">3d2h<") || listHtml.includes(">3d1h<"), "在线号周额度应以紧凑格式显示重置倒计时");
+    assert.ok(listHtml.includes('class="acc-qbucket-meta is-recovered"') && listHtml.includes(">✓<"), "后台号已过重置点的 5h 桶应紧凑显示绿色 ✓");
     assert.ok(listHtml.includes('title="Antigravity Starter Quota">Starter</span>'), "卡片套餐徽标应展示简称并在 title 保留全称");
   });
 });

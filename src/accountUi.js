@@ -133,17 +133,17 @@ function getAccountCss() {
     .acc-list {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
 
     .acc-card {
-      padding: 9px 11px;
+      padding: 7px 9px;
       border-radius: var(--radius-md);
       background: var(--bg-inset);
       border: 1px solid var(--border);
       display: flex;
       flex-direction: column;
-      gap: 7px;
+      gap: 5px;
       transition: border-color 140ms ease, background-color 140ms ease;
     }
 
@@ -218,100 +218,158 @@ function getAccountCss() {
     }
 
     .acc-mini-quotas {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 4px;
+    }
+
+    @media (min-width: 520px) {
+      .acc-mini-quotas {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 5px 8px;
+      }
     }
 
     .acc-qgroup {
       display: flex;
       flex-direction: column;
       gap: 3px;
+      padding: 4px 6px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      min-width: 0;
     }
 
-    .acc-mini-qrow {
-      display: grid;
-      grid-template-columns: 62px 26px minmax(32px, 1fr) auto;
+    .acc-qgroup-head {
+      display: flex;
       align-items: center;
-      gap: 5px;
-      font-size: 11px;
+      justify-content: space-between;
+      gap: 4px;
+      min-width: 0;
     }
 
     .acc-mini-qname {
+      font-size: 10px;
+      line-height: 1.2;
+      font-weight: 600;
       color: var(--text-secondary);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-weight: 500;
     }
 
-    .acc-mini-qname.is-sub {
-      color: transparent;
-      user-select: none;
+    .acc-qgroup-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 4px 8px;
+      min-width: 0;
+    }
+
+    .acc-qgroup-grid.is-single {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .acc-qbucket {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .acc-qbucket-top {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 3px;
+      min-width: 0;
+      line-height: 1.25;
+    }
+
+    .acc-qbucket-left {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 3px;
+      min-width: 0;
+      flex-shrink: 0;
     }
 
     .acc-win-tag {
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      height: 15px;
-      padding: 0 4px;
-      border-radius: 3px;
-      background: var(--bg-subtle);
-      border: 1px solid var(--border-subtle);
-      color: var(--text-secondary);
       font-family: var(--font-mono);
       font-size: 9.5px;
       line-height: 1;
+      color: var(--text-muted);
       white-space: nowrap;
     }
 
     .acc-win-tag.is-weekly {
       color: var(--info-text);
-      border-color: var(--accent-border);
-      background: var(--bg-panel);
+    }
+
+    .acc-qbucket-pct {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+    }
+
+    .acc-qbucket-pct.is-recovered {
+      color: var(--ok);
+    }
+
+    .acc-qbucket-meta {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+
+    .acc-qbucket-meta.is-recovered {
+      color: var(--ok);
+      font-weight: 600;
     }
 
     .acc-mini-qtrack {
-      height: 5px;
-      border-radius: 3px;
-      background: var(--bg-subtle);
-      border: 1px solid var(--border-subtle);
+      height: 3.5px;
+      border-radius: 2px;
+      background: var(--bg-panel);
       overflow: hidden;
     }
 
     .acc-mini-qfill {
       height: 100%;
-      border-radius: 3px;
+      border-radius: 2px;
       transition: width 220ms ease;
-    }
-
-    .acc-mini-qval {
-      font-family: var(--font-mono);
-      font-size: 10.5px;
-      color: var(--text-primary);
-      white-space: nowrap;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .acc-mini-qval.is-recovered {
-      color: var(--ok);
-      font-weight: 600;
     }
 
     .acc-countdown-chip {
       display: inline-flex;
       align-items: center;
-      padding: 1px 5px;
-      border-radius: 4px;
-      background: var(--bg-subtle);
-      border: 1px solid var(--border-subtle);
       color: var(--info-text);
       font-family: var(--font-mono);
+      font-size: 9.5px;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .acc-card-foot-meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+
+    .acc-card-source {
       font-size: 10px;
-      line-height: 1.3;
+      color: var(--text-muted);
+      white-space: nowrap;
     }
 
     .acc-card-foot {
@@ -917,6 +975,22 @@ function getAccountClientScript() {
       return state.data && state.data.prefs && state.data.prefs.privacyMask ? maskEmail(email) : email;
     }
 
+    function formatCountdownCompactClient(remainingMs) {
+      const ms = Number(remainingMs);
+      if (!Number.isFinite(ms) || ms <= 0) return lang() === 'en' ? 'Full' : '满';
+      const totalSec = Math.max(1, Math.floor(ms / 1000));
+      const d = Math.floor(totalSec / 86400);
+      const h = Math.floor((totalSec % 86400) / 3600);
+      const m = Math.floor((totalSec % 3600) / 60);
+      const s = totalSec % 60;
+      const pad2 = (n) => (n < 10 ? '0' + n : String(n));
+      if (d > 0) return h > 0 ? d + 'd' + h + 'h' : d + 'd';
+      if (h > 0) return m > 0 ? h + 'h' + m + 'm' : h + 'h';
+      if (m >= 10) return m + 'm';
+      if (m > 0) return m + 'm' + pad2(s) + 's';
+      return totalSec + 's';
+    }
+
     function formatCountdownClient(remainingMs, showSeconds) {
       const ms = Number(remainingMs);
       if (!Number.isFinite(ms) || ms <= 0) return lang() === 'en' ? 'Full' : '已回满';
@@ -1195,8 +1269,11 @@ function getAccountClientScript() {
           }
           const txtEl = chip.querySelector('.acc-cd-text');
           if (txtEl) {
-            const fmtKey = chip.getAttribute('data-cd-fmt') || 'fullInFmt';
-            txtEl.textContent = t(fmtKey, { cd: formatCountdownClient(rstMs - now, true) });
+            const prefix = chip.getAttribute('data-cd-prefix') || '';
+            const nextTxt = prefix + formatCountdownCompactClient(rstMs - now);
+            if (txtEl.textContent !== nextTxt) {
+              txtEl.textContent = nextTxt;
+            }
           }
         });
         if (liveRolledOver && now - state.liveSyncCooldownAtMs >= 5000) {
@@ -1395,74 +1472,73 @@ function getAccountClientScript() {
             const orderedBuckets = pickWindowBucketsClient(g.buckets);
             if (orderedBuckets.length === 0) return '';
             const poolShort = shortPoolName(g.displayName);
+            const gridCls = orderedBuckets.length === 1 ? 'acc-qgroup-grid is-single' : 'acc-qgroup-grid';
 
-            const rowsHtml = orderedBuckets.map((entry, idx) => {
+            const bucketsHtml = orderedBuckets.map((entry) => {
               const b = entry.bucket;
               const kind = entry.kind;
               const barPct = isCurrent ? b.recordedPct : (b.recovered ? 100 : b.recordedPct);
               const fillColor = barPct <= 10 ? 'var(--danger)' : barPct <= 25 ? 'var(--warn)' : 'var(--ok)';
 
-              let rightHtml = '';
-              let valCls = '';
-              let tipAttr = '';
+              let pctText = (isCurrent ? b.recordedPct : b.effectivePct) + '%';
+              let pctCls = 'acc-qbucket-pct';
+              let metaHtml = '';
+              let tipText = '';
 
               if (isCurrent) {
                 if (!b.isFull && b.remainingMs > 0) {
-                  rightHtml =
-                    '<span>' + b.recordedPct + '%</span>' +
-                    '<span class="acc-countdown-chip" data-is-live="1" data-reset-ms="' + b.resetAtMs + '" data-cd-fmt="resetInFmt">' +
-                      '<span class="acc-cd-text">' + esc(t('resetInFmt', { cd: formatCountdownClient(b.remainingMs, true) })) + '</span>' +
+                  tipText = t('resetInFmt', { cd: formatCountdownClient(b.remainingMs, false) });
+                  metaHtml =
+                    '<span class="acc-countdown-chip" data-is-live="1" data-reset-ms="' + b.resetAtMs + '" data-cd-prefix="" title="' + esc(tipText) + '">' +
+                      '<span class="acc-cd-text">' + esc(formatCountdownCompactClient(b.remainingMs)) + '</span>' +
                     '</span>';
-                } else {
-                  if (b.remainingMs > 0) {
-                    tipAttr = ' title="' + esc(t('resetInFmt', { cd: formatCountdownClient(b.remainingMs, false) })) + '"';
-                  }
-                  rightHtml = '<span>' + b.recordedPct + '%</span>';
+                } else if (b.remainingMs > 0) {
+                  tipText = t('resetInFmt', { cd: formatCountdownClient(b.remainingMs, false) });
                 }
               } else if (b.state === 'recovered') {
-                valCls = 'is-recovered';
-                tipAttr = ' title="' + esc(t('exitRecordedTip', { pct: b.recordedPct })) + '"';
-                rightHtml = '<span>' + esc(t('recoveredLabel')) + '</span>';
+                pctText = '100%';
+                pctCls = 'acc-qbucket-pct is-recovered';
+                tipText = t('exitRecordedTip', { pct: b.recordedPct });
+                metaHtml = '<span class="acc-qbucket-meta is-recovered" title="' + esc(tipText) + '">✓</span>';
               } else if (b.state === 'recovering') {
-                rightHtml =
-                  '<span>' + b.recordedPct + '%</span>' +
-                  '<span class="acc-countdown-chip" data-reset-ms="' + b.resetAtMs + '" data-cd-fmt="fullInFmt">' +
-                    '<span class="acc-cd-text">' + esc(t('fullInFmt', { cd: formatCountdownClient(b.remainingMs, true) })) + '</span>' +
+                pctText = b.recordedPct + '%';
+                tipText = t('fullInFmt', { cd: formatCountdownClient(b.remainingMs, false) });
+                metaHtml =
+                  '<span class="acc-countdown-chip" data-reset-ms="' + b.resetAtMs + '" data-cd-prefix="↻" title="' + esc(tipText) + '">' +
+                    '<span class="acc-cd-text">↻' + esc(formatCountdownCompactClient(b.remainingMs)) + '</span>' +
                   '</span>';
-              } else {
-                if (b.remainingMs > 0) {
-                  tipAttr = ' title="' + esc(t('resetInFmt', { cd: formatCountdownClient(b.remainingMs, false) })) + '"';
-                }
-                rightHtml = '<span>' + b.effectivePct + '%</span>';
+              } else if (b.remainingMs > 0) {
+                tipText = t('resetInFmt', { cd: formatCountdownClient(b.remainingMs, false) });
               }
 
               const winText = formatWindowTagText(kind, b);
               const winCls = kind === 'weekly' ? 'acc-win-tag is-weekly' : 'acc-win-tag';
-              const nameCell = idx === 0
-                ? '<span class="acc-mini-qname" title="' + esc(g.displayName) + '">' + esc(poolShort) + '</span>'
-                : '<span class="acc-mini-qname is-sub" aria-hidden="true">' + esc(poolShort) + '</span>';
+              const tipAttr = tipText ? ' title="' + esc(tipText) + '"' : '';
 
               return (
-                '<div class="acc-mini-qrow" data-quota-window="' + esc(kind) + '">' +
-                  nameCell +
-                  '<span class="' + winCls + '">' + esc(winText) + '</span>' +
+                '<div class="acc-qbucket" data-quota-window="' + esc(kind) + '"' + tipAttr + '>' +
+                  '<div class="acc-qbucket-top">' +
+                    '<span class="acc-qbucket-left">' +
+                      '<span class="' + winCls + '">' + esc(winText) + '</span>' +
+                      '<span class="' + pctCls + '">' + esc(pctText) + '</span>' +
+                    '</span>' +
+                    metaHtml +
+                  '</div>' +
                   '<div class="acc-mini-qtrack"><div class="acc-mini-qfill" style="width:' + barPct + '%;background:' + fillColor + '"></div></div>' +
-                  '<span class="acc-mini-qval ' + valCls + '"' + tipAttr + '>' + rightHtml + '</span>' +
                 '</div>'
               );
             }).join('');
 
-            return '<div class="acc-qgroup">' + rowsHtml + '</div>';
+            return (
+              '<div class="acc-qgroup">' +
+                '<div class="acc-qgroup-head">' +
+                  '<span class="acc-mini-qname" title="' + esc(g.displayName) + '">' + esc(poolShort) + '</span>' +
+                '</div>' +
+                '<div class="' + gridCls + '">' + bucketsHtml + '</div>' +
+              '</div>'
+            );
           }).join('') + '</div>';
         }
-
-        const stateTagHtml = isCurrent
-          ? '<span class="meta-tag is-info">' + esc(t('liveRealtimeTag')) + '</span>'
-          : ev && ev.hasRecovered && !ev.hasRecovering
-            ? '<span class="meta-tag is-ok">' + esc(t('recoveredTag')) + '</span>'
-            : ev && ev.hasRecovering
-              ? '<span class="meta-tag is-info">' + esc(t('recoveringTag')) + '</span>'
-              : '';
 
         const isSwitchingThis = state.switchingId === acc.id;
         return (
@@ -1481,14 +1557,15 @@ function getAccountClientScript() {
                 (acc.oauthClientKey === 'antigravity_enterprise'
                   ? '<span class="meta-tag is-warn" title="' + esc(t('externalClientTip')) + '">' + esc(t('externalClientTag')) + '</span>'
                   : '') +
-                stateTagHtml +
-                '<span class="meta-tag">' + esc(sourceLabel(acc.source)) + '</span>' +
               '</div>' +
             '</div>' +
             quotaHtml +
             '<div class="acc-card-foot">' +
-              '<span class="meta-tag ' + (acc.hasRefreshToken ? '' : 'is-warn') + '">' +
-                esc(t(acc.hasRefreshToken ? 'refreshTokenTag' : 'accessOnlyTag')) +
+              '<span class="acc-card-foot-meta">' +
+                '<span class="meta-tag ' + (acc.hasRefreshToken ? '' : 'is-warn') + '">' +
+                  esc(t(acc.hasRefreshToken ? 'refreshTokenTag' : 'accessOnlyTag')) +
+                '</span>' +
+                '<span class="acc-card-source">' + esc(sourceLabel(acc.source)) + '</span>' +
               '</span>' +
               '<div class="acc-card-actions">' +
                 (isCurrent
