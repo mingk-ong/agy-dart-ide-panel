@@ -190,6 +190,12 @@ test("backendClient & htmlBuilder 融合双页签端到端: 真实托管 server.
     assert.equal(stats.ok, true);
     assert.equal(stats.status, 200);
 
+    // 校验 agy-dart v1.7.8 新增二级路由白名单与 Stall Watchdog 端点可达
+    assert.equal(AgyDartBackendClient.validateApiPath("/api/watchdog/action"), "/api/watchdog/action");
+    assert.throws(() => AgyDartBackendClient.validateApiPath("/api/../etc"), /非法 API 路径/);
+    const wd = await client.requestApi("/api/watchdog", "POST", { conversationId: "test-conv-123" });
+    assert.equal(wd.ok, true, "v1.7.8 /api/watchdog 应返回 200 OK");
+
     const rawHtml = await client.fetchDashboardHtml();
     const baseState = {
       lang: "zh",
@@ -230,6 +236,17 @@ test("backendClient & htmlBuilder 融合双页签端到端: 真实托管 server.
       assert.ok(tabsIdx > 0 && convIdx > tabsIdx, "主页签应位于全局对话栏与一切内容的最顶上");
       assert.ok(dartHeadIdx > convIdx && brandIdx > dartHeadIdx && modeBtnIdx > dartHeadIdx, "护栏标题与模式/体检/配置按钮应归属护栏专属区 dart-only-section");
       assert.ok(converted.indexOf('id="lang-zh-btn"') > convIdx && converted.indexOf('id="lang-zh-btn"') < dartHeadIdx, "双语切换与刷新按钮应留在全局工具栏中");
+
+      // 校验 agy-dart v1.7.8 新增头部控件（保活控制组、启停按钮、版本检测与更新横幅）完整保留并归入护栏专属区
+      assert.ok(converted.includes('class="ide-dart-pills dart-only-section"'), "应完整保留 v1.7.8 .topbar-pills 护栏状态与保活控件");
+      assert.ok(converted.includes('id="toggle-active-btn"'), "应保留护栏启停按钮");
+      assert.ok(converted.includes('id="kv-keepalive-btn"'), "应保留 Auto-Keepalive 保活开关");
+      assert.ok(converted.includes('id="version-check-btn"'), "应保留版本更新检查按钮");
+      assert.ok(/<div\b[^>]*\bid="scope-switcher-row"[^>]*dart-only-section/i.test(converted), "scope 行应归入 dart-only-section");
+      assert.ok(/<div\b[^>]*\bid="telemetry-banner"[^>]*dart-only-section/i.test(converted), "telemetry 横幅应归入 dart-only-section");
+      assert.ok(/<div\b[^>]*\bid="version-update-banner"[^>]*dart-only-section/i.test(converted), "版本更新横幅应归入 dart-only-section");
+      assert.ok(converted.includes("window.__agyIdeApplyHostLang"), "应采用防签名冲突的语言桥接以兼容 v1.7.8 setLanguage(lang, syncServer)");
+      assert.ok(converted.includes("toggleConversation("), "window.sidecar.ui 应桥接点击会话跳转");
 
       const scripts = [];
       converted.replace(/<script>([\s\S]*?)<\/script>/gi, (_, code) => {

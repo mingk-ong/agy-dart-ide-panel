@@ -39,7 +39,7 @@
 
 ### 安装新版 VSIX
 ```powershell
-antigravity-ide --install-extension .\agy-fusion-panel-4.0.3.vsix --force
+antigravity-ide --install-extension .\agy-fusion-panel-4.0.4.vsix --force
 ```
 
 ### 从源码构建与测试

@@ -4,9 +4,11 @@ const http = require("node:http");
 const path = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 
-const ALLOWED_API_PATH_RE = /^\/api\/[a-z0-9-]+$/i;
+const ALLOWED_API_PATH_RE = /^\/api\/[a-z0-9-]+(?:\/[a-z0-9-]+)?$/i;
 const STARTUP_TIMEOUT_MS = 8000;
 const API_TIMEOUT_MS = 15000;
+const LONG_API_TIMEOUT_MS = 60000;
+const LONG_API_PATHS = new Set(["/api/update", "/api/doctor"]);
 
 /**
  * 托管 agy-dart Sidecar 独立 HTTP 服务进程并通过本地回环代理全部 /api/* 请求。
@@ -262,7 +264,8 @@ class AgyDartBackendClient {
         method: upperMethod,
         reqPath: cleanPath,
         headers,
-        body: payloadStr
+        body: payloadStr,
+        timeoutMs: LONG_API_PATHS.has(cleanPath) ? LONG_API_TIMEOUT_MS : API_TIMEOUT_MS
       });
     };
 
@@ -296,7 +299,7 @@ class AgyDartBackendClient {
     };
   }
 
-  _httpRequest({ port, method, reqPath, headers, body }) {
+  _httpRequest({ port, method, reqPath, headers, body, timeoutMs = API_TIMEOUT_MS }) {
     return new Promise((resolve, reject) => {
       const req = http.request(
         {
@@ -305,7 +308,7 @@ class AgyDartBackendClient {
           path: reqPath,
           method,
           headers,
-          timeout: API_TIMEOUT_MS
+          timeout: timeoutMs
         },
         (res) => {
           const chunks = [];
@@ -320,7 +323,7 @@ class AgyDartBackendClient {
       );
 
       req.on("timeout", () => {
-        req.destroy(new Error(`请求 ${reqPath} 超时 (${API_TIMEOUT_MS}ms)`));
+        req.destroy(new Error(`请求 ${reqPath} 超时 (${timeoutMs}ms)`));
       });
       req.on("error", (err) => {
         reject(err);

@@ -517,6 +517,26 @@ function getIdeOverlayCss() {
       flex-wrap: wrap;
     }
 
+    .ide-dart-pills {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .ide-dart-pills .topbar-pills {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      width: 100%;
+    }
+
+    /* 上游 agy-dart 的 Star 外链仅在护栏页签显示，保持遥测与账号顶栏简洁 */
+    body:not([data-active-tab="dart"]) #github-star-link {
+      display: none !important;
+    }
+
     .ide-chip-btn {
       display: inline-flex;
       align-items: center;
@@ -623,6 +643,14 @@ function getDartHeaderRowHtml(brandGroupHtml = "") {
       <div class="ide-dart-header dart-only-section">
         ${brandGroupHtml}
         ${getDartActionsHtml()}
+      </div>`;
+}
+
+function getDartPillsRowHtml(pillsHtml = "") {
+  if (!pillsHtml) return "";
+  return `
+      <div class="ide-dart-pills dart-only-section">
+        ${pillsHtml}
       </div>`;
 }
 
@@ -884,6 +912,13 @@ function getPreBridgeScript(initialState) {
       },
       fetch(url, options) {
         return window.__agyIdeBridge.fetch(url, options);
+      },
+      ui: {
+        toggleConversation(targetId) {
+          if (typeof targetId === 'string' && targetId.trim()) {
+            window.__agyIdeBridge.selectConversation(targetId.trim());
+          }
+        }
       }
     };
 
@@ -948,8 +983,11 @@ function getPreBridgeScript(initialState) {
       }
 
       if (msg.type === 'setLanguage' && (msg.lang === 'zh' || msg.lang === 'en')) {
-        if (typeof window.setLanguage === 'function') {
-          window.setLanguage(msg.lang, true);
+        if (typeof window.__agyIdeApplyHostLang === 'function') {
+          window.__agyIdeApplyHostLang(msg.lang);
+        } else if (typeof window.setLanguage === 'function') {
+          window.setLanguage(msg.lang, false);
+          window.__agyIdeBridge.syncToolbar(msg.lang);
         } else {
           window.__agyIdeBridge.syncToolbar(msg.lang);
         }
@@ -985,16 +1023,27 @@ function getPostBridgeScript() {
 
     if (typeof window.setLanguage === 'function') {
       const origSetLanguage = window.setLanguage;
-      window.setLanguage = function(lang, fromHost) {
-        origSetLanguage(lang);
-        if (fromHost) {
+      let applyingHostLang = false;
+      window.__agyIdeApplyHostLang = function(lang) {
+        applyingHostLang = true;
+        try {
+          origSetLanguage(lang, false);
+          window.__agyIdeBridge.syncToolbar(lang);
+        } finally {
+          applyingHostLang = false;
+        }
+      };
+      window.setLanguage = function(lang, ...rest) {
+        const res = origSetLanguage(lang, ...rest);
+        if (applyingHostLang) {
           window.__agyIdeBridge.syncToolbar(lang);
         } else {
           window.__agyIdeBridge.notifyLang(lang);
         }
+        return res;
       };
       const targetLang = init.lang === 'en' ? 'en' : 'zh';
-      window.setLanguage(targetLang, true);
+      window.__agyIdeApplyHostLang(targetLang);
     } else {
       window.__agyIdeBridge.syncToolbar(init.lang);
     }
@@ -1213,7 +1262,7 @@ function buildDashboardHtml({ rawHtml = "", dartUnavailableReason = "", mode = "
     (_, attrs) => `<body${attrs} data-ide-mode="${escapeHtml(mode)}" data-active-tab="${escapeHtml(safeInitialState.activeTab)}">`
   );
 
-  // 5-6. 重排 header.topbar：主页签置最顶 -> 全局工具栏（对话/全宽/双语/刷新）-> 护栏专属头部与 Scope/Telemetry（均归入 dart-only-section）
+  // 5-6. 重排 header.topbar：主页签置最顶 -> 全局工具栏（对话/全宽/双语/刷新）-> 护栏专属头部、保活控制栏与 Scope/Telemetry/更新横幅（均归入 dart-only-section）
   const headerOpenMatch = /<header\s+class="topbar">/i.exec(html);
   const headerCloseIdx = headerOpenMatch ? html.indexOf("</header>", headerOpenMatch.index) : -1;
   if (headerOpenMatch && headerCloseIdx !== -1) {
@@ -1222,29 +1271,39 @@ function buildDashboardHtml({ rawHtml = "", dartUnavailableReason = "", mode = "
     const firstTopbarRow = extractDivBlock(headerInner, /<div\s+class="topbar-row">/i);
     if (firstTopbarRow) {
       const brandBlock = extractDivBlock(firstTopbarRow.html, /<div\s+class="brand-group">/i);
+      const pillsBlock = extractDivBlock(firstTopbarRow.html, /<div\s+class="topbar-pills">/i);
       const actionsBlock = extractDivBlock(firstTopbarRow.html, /<div\s+class="header-actions">/i);
       const rebuiltHead = [
         getMainTabsHtml(safeInitialState.activeTab),
         getGlobalToolbarHtml(mode, actionsBlock ? actionsBlock.html : ""),
-        getDartHeaderRowHtml(brandBlock ? brandBlock.html : "")
-      ].join("\n");
+        getDartHeaderRowHtml(brandBlock ? brandBlock.html : ""),
+        pillsBlock ? getDartPillsRowHtml(pillsBlock.html) : ""
+      ].filter(Boolean).join("\n");
       headerInner = headerInner.slice(0, firstTopbarRow.start) + rebuiltHead + headerInner.slice(firstTopbarRow.end);
     } else {
       headerInner = `${getMainTabsHtml(safeInitialState.activeTab)}\n${getGlobalToolbarHtml(mode, "")}\n${getDartHeaderRowHtml("")}\n${headerInner}`;
     }
 
-    const scopeRowRegex = /<div\s+class="topbar-row">\s*<div\s+class="segmented">\s*<button\s+id="scope-conv-btn"/i;
-    if (scopeRowRegex.test(headerInner)) {
-      headerInner = headerInner.replace(
-        scopeRowRegex,
-        () => `<div class="topbar-row dart-only-section">\n        <div class="segmented">\n          <button id="scope-conv-btn"`
-      );
+    const appendDartOnlyClass = (tag) =>
+      tag.includes("dart-only-section")
+        ? tag
+        : tag.replace(/class="([^"]*)"/i, (_, cls) => `class="${cls} dart-only-section"`);
+
+    // 兼容 agy-dart v1.7+（带 id="scope-switcher-row" 与 hidden）及旧版 v1.3 无 id 的 scope 行
+    if (/<div\b[^>]*\bid="scope-switcher-row"[^>]*>/i.test(headerInner)) {
+      headerInner = headerInner.replace(/<div\b[^>]*\bid="scope-switcher-row"[^>]*>/i, appendDartOnlyClass);
+    } else {
+      const legacyScopeRowRegex = /<div\s+class="topbar-row">\s*<div\s+class="segmented">\s*<button\s+id="scope-conv-btn"/i;
+      if (legacyScopeRowRegex.test(headerInner)) {
+        headerInner = headerInner.replace(
+          legacyScopeRowRegex,
+          () => `<div class="topbar-row dart-only-section">\n        <div class="segmented">\n          <button id="scope-conv-btn"`
+        );
+      }
     }
 
-    headerInner = headerInner.replace(
-      /<div\s+id="telemetry-banner"\s+class="telemetry-bar">/i,
-      () => `<div id="telemetry-banner" class="telemetry-bar dart-only-section">`
-    );
+    headerInner = headerInner.replace(/<div\b[^>]*\bid="telemetry-banner"[^>]*>/i, appendDartOnlyClass);
+    headerInner = headerInner.replace(/<div\b[^>]*\bid="version-update-banner"[^>]*>/i, appendDartOnlyClass);
 
     html = html.slice(0, innerStart) + headerInner + html.slice(headerCloseIdx);
   }

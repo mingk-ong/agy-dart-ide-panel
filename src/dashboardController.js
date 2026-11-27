@@ -27,7 +27,11 @@ const MUTATING_API_PATHS = new Set([
   "/api/purge",
   "/api/maintenance",
   "/api/cli-filter",
-  "/api/read-dedup"
+  "/api/read-dedup",
+  "/api/watchdog/action",
+  "/api/star-prompt",
+  "/api/auto-update",
+  "/api/update"
 ]);
 
 const PROTECTION_MODES = [
@@ -310,6 +314,12 @@ class DashboardController {
           if (resp.ok && MUTATING_API_PATHS.has(msg.path)) {
             this._onTelemetryMutated();
             this._broadcastOtherWebview(webview, { type: "refresh" });
+            if (msg.path === "/api/update" && resp.data && (resp.data.updated || resp.data.status === "updated")) {
+              void this._backend
+                .restart()
+                .then(() => this.refreshAll({ reloadHtml: true }))
+                .catch(() => {});
+            }
           }
         } catch (err) {
           webview.postMessage({
